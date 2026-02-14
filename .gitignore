@@ -1,0 +1,44 @@
+# AceML Studio - Git Ignore
+# =========================
+
+# Sensitive configuration
+config.properties
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+acemlenv/
+.venv/
+venv/
+ENV/
+env/
+
+# Uploaded data files
+uploads/*
+!uploads/.gitkeep
+
+# Experiment results
+experiments/*
+!experiments/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+Data/Amazon-Products.csv
+uploads/.gitkeep

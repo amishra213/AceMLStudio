@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - AceML Studio</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+        .settings-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        .settings-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        .settings-header h1 {
+            color: #fff;
+            margin: 0;
+            font-weight: 700;
+        }
+        .settings-header p {
+            color: rgba(255, 255, 255, 0.9);
+            margin: 10px 0 0 0;
+        }
+        .back-btn {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+        }
+        .settings-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .settings-card h3 {
+            color: #667eea;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+            padding-bottom: 10px;
+        }
+        .form-label {
+            color: #e0e0e0;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .form-control, .form-select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border-radius: 8px;
+            padding: 10px 15px;
+        }
+        .form-control:focus, .form-select:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #667eea;
+            color: #fff;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .form-text {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85rem;
+        }
+        .btn-save {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: #fff;
+            padding: 12px 40px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-reset {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #dc3545;
+        }
+        .btn-reset:hover {
+            background: #dc3545;
+            color: #fff;
+        }
+        .alert {
+            border-radius: 8px;
+        }
+        .provider-config {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+        .provider-config.active {
+            display: block;
+        }
+        .input-group-text {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0;
+        }
+        .form-check-input {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .form-check-input:checked {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+        .section-divider {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="btn btn-outline-light back-btn">
+        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+    </a>
+
+    <div class="settings-container">
+        <div class="settings-header">
+            <h1><i class="fas fa-cog me-3"></i>Application Settings</h1>
+            <p>Configure all application parameters and credentials</p>
+        </div>
+
+        <!-- Alert Messages -->
+        <div id="alertContainer"></div>
+
+        <form id="settingsForm">
+            <!-- Application Settings -->
+            <div class="settings-card">
+                <h3><i class="fas fa-desktop me-2"></i>Application Settings</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="secretKey">Secret Key</label>
+                        <input type="password" class="form-control" id="secretKey" name="SECRET_KEY">
+                        <div class="form-text">Secret key for session management (keep secure)</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="debug">Debug Mode</label>
+                        <select class="form-select" id="debug" name="DEBUG">
+                            <option value="True">Enabled</option>
+                            <option value="False">Disabled</option>
+                        </select>
+                        <div class="form-text">Enable detailed error messages (disable in production)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LLM Configuration -->
+            <div class="settings-card">
+                <h3><i class="fas fa-brain me-2"></i>LLM Configuration</h3>
+                <div class="mb-3">
+                    <label class="form-label" for="llmProvider">LLM Provider</label>
+                    <select class="form-select" id="llmProvider" name="LLM_PROVIDER">
+                        <option value="openai">OpenAI</option>
+                        <option value="azure_openai">Azure OpenAI</option>
+                        <option value="anthropic">Anthropic (Claude)</option>
+                        <option value="deepseek">DeepSeek</option>
+                    </select>
+                    <div class="form-text">Select your preferred LLM provider for AI insights</div>
+                </div>
+
+                <!-- OpenAI Config -->
+                <div class="provider-config" id="config-openai">
+                    <h5 class="mb-3"><i class="fab fa-openai me-2"></i>OpenAI Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="openaiApiKey">API Key</label>
+                            <input type="password" class="form-control" id="openaiApiKey" name="OPENAI_API_KEY">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="openaiModel">Model</label>
+                            <select class="form-select" id="openaiModel" name="OPENAI_MODEL">
+                                <option value="gpt-4">GPT-4</option>
+                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="openaiMaxTokens">Max Tokens</label>
+                            <input type="number" class="form-control" id="openaiMaxTokens" name="OPENAI_MAX_TOKENS" min="1" max="8192">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="openaiTemperature">Temperature</label>
+                            <input type="number" class="form-control" id="openaiTemperature" name="OPENAI_TEMPERATURE" min="0" max="2" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Azure OpenAI Config -->
+                <div class="provider-config" id="config-azure_openai">
+                    <h5 class="mb-3"><i class="fab fa-microsoft me-2"></i>Azure OpenAI Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureOpenaiEndpoint">Endpoint</label>
+                            <input type="text" class="form-control" id="azureOpenaiEndpoint" name="AZURE_OPENAI_ENDPOINT" placeholder="https://your-resource.openai.azure.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureOpenaiKey">API Key</label>
+                            <input type="password" class="form-control" id="azureOpenaiKey" name="AZURE_OPENAI_KEY">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureOpenaiDeployment">Deployment Name</label>
+                            <input type="text" class="form-control" id="azureOpenaiDeployment" name="AZURE_OPENAI_DEPLOYMENT">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureOpenaiApiVersion">API Version</label>
+                            <input type="text" class="form-control" id="azureOpenaiApiVersion" name="AZURE_OPENAI_API_VERSION">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anthropic Config -->
+                <div class="provider-config" id="config-anthropic">
+                    <h5 class="mb-3"><i class="fas fa-robot me-2"></i>Anthropic Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="anthropicApiKey">API Key</label>
+                            <input type="password" class="form-control" id="anthropicApiKey" name="ANTHROPIC_API_KEY">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="anthropicModel">Model</label>
+                            <select class="form-select" id="anthropicModel" name="ANTHROPIC_MODEL">
+                                <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                                <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                                <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DeepSeek Config -->
+                <div class="provider-config" id="config-deepseek">
+                    <h5 class="mb-3"><i class="fas fa-brain me-2"></i>DeepSeek Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="deepseekApiKey">API Key</label>
+                            <input type="password" class="form-control" id="deepseekApiKey" name="DEEPSEEK_API_KEY">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="deepseekModel">Model</label>
+                            <input type="text" class="form-control" id="deepseekModel" name="DEEPSEEK_MODEL">
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="deepseekBaseUrl">Base URL</label>
+                            <input type="text" class="form-control" id="deepseekBaseUrl" name="DEEPSEEK_BASE_URL">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="deepseekMaxTokens">Max Tokens</label>
+                            <input type="number" class="form-control" id="deepseekMaxTokens" name="DEEPSEEK_MAX_TOKENS" min="1" max="8192">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="deepseekTemperature">Temperature</label>
+                            <input type="number" class="form-control" id="deepseekTemperature" name="DEEPSEEK_TEMPERATURE" min="0" max="2" step="0.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Upload Configuration -->
+            <div class="settings-card">
+                <h3><i class="fas fa-upload me-2"></i>File Upload Configuration</h3>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="maxFileUploadSize">Max File Upload Size (MB)</label>
+                        <input type="number" class="form-control" id="maxFileUploadSize" name="MAX_FILE_UPLOAD_SIZE_MB" min="1" max="2048">
+                        <div class="form-text">Maximum allowed file size for uploads</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="chunkSize">Chunk Size (MB)</label>
+                        <input type="number" class="form-control" id="chunkSize" name="CHUNK_SIZE_MB" min="1" max="100">
+                        <div class="form-text">Size of chunks for large file uploads</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="largeFileThreshold">Large File Threshold (MB)</label>
+                        <input type="number" class="form-control" id="largeFileThreshold" name="LARGE_FILE_THRESHOLD_MB" min="1" max="1024">
+                        <div class="form-text">Files above this use chunked upload</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="useDbForLargeFiles">Use Database for Large Files</label>
+                        <select class="form-select" id="useDbForLargeFiles" name="USE_DB_FOR_LARGE_FILES">
+                            <option value="True">Enabled</option>
+                            <option value="False">Disabled</option>
+                        </select>
+                        <div class="form-text">Store large datasets in database to save RAM</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="dbFallbackThreshold">DB Fallback Threshold (MB)</label>
+                        <input type="number" class="form-control" id="dbFallbackThreshold" name="DB_FALLBACK_THRESHOLD_MB" min="100" max="5000">
+                        <div class="form-text">Switch to database storage above this size</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cloud GPU Configuration -->
+            <div class="settings-card">
+                <h3><i class="fas fa-server me-2"></i>Cloud GPU Configuration</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="cloudGpuEnabled">Enable Cloud GPU</label>
+                        <select class="form-select" id="cloudGpuEnabled" name="CLOUD_GPU_ENABLED">
+                            <option value="True">Enabled</option>
+                            <option value="False">Disabled</option>
+                        </select>
+                        <div class="form-text">Use cloud GPUs for training and tuning</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="cloudGpuProvider">Cloud Provider</label>
+                        <select class="form-select" id="cloudGpuProvider" name="CLOUD_GPU_PROVIDER">
+                            <option value="aws_sagemaker">AWS SageMaker</option>
+                            <option value="azure_ml">Azure ML</option>
+                            <option value="gcp_vertex">GCP Vertex AI</option>
+                            <option value="custom">Custom GPU Server</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- AWS SageMaker -->
+                <div class="provider-config" id="config-aws_sagemaker">
+                    <h5 class="mb-3"><i class="fab fa-aws me-2"></i>AWS SageMaker Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="awsRegion">AWS Region</label>
+                            <input type="text" class="form-control" id="awsRegion" name="AWS_REGION">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="awsAccessKeyId">Access Key ID</label>
+                            <input type="password" class="form-control" id="awsAccessKeyId" name="AWS_ACCESS_KEY_ID">
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="awsSecretAccessKey">Secret Access Key</label>
+                            <input type="password" class="form-control" id="awsSecretAccessKey" name="AWS_SECRET_ACCESS_KEY">
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="awsSagemakerRoleArn">SageMaker Role ARN</label>
+                            <input type="text" class="form-control" id="awsSagemakerRoleArn" name="AWS_SAGEMAKER_ROLE_ARN">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="awsSagemakerInstanceType">Instance Type</label>
+                            <input type="text" class="form-control" id="awsSagemakerInstanceType" name="AWS_SAGEMAKER_INSTANCE_TYPE">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="awsSagemakerS3Bucket">S3 Bucket</label>
+                            <input type="text" class="form-control" id="awsSagemakerS3Bucket" name="AWS_SAGEMAKER_S3_BUCKET">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Azure ML -->
+                <div class="provider-config" id="config-azure_ml">
+                    <h5 class="mb-3"><i class="fab fa-microsoft me-2"></i>Azure ML Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureSubscriptionId">Subscription ID</label>
+                            <input type="text" class="form-control" id="azureSubscriptionId" name="AZURE_SUBSCRIPTION_ID">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureResourceGroup">Resource Group</label>
+                            <input type="text" class="form-control" id="azureResourceGroup" name="AZURE_RESOURCE_GROUP">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureWorkspaceName">Workspace Name</label>
+                            <input type="text" class="form-control" id="azureWorkspaceName" name="AZURE_WORKSPACE_NAME">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureTenantId">Tenant ID</label>
+                            <input type="text" class="form-control" id="azureTenantId" name="AZURE_TENANT_ID">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureClientId">Client ID</label>
+                            <input type="text" class="form-control" id="azureClientId" name="AZURE_CLIENT_ID">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureClientSecret">Client Secret</label>
+                            <input type="password" class="form-control" id="azureClientSecret" name="AZURE_CLIENT_SECRET">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureComputeTarget">Compute Target</label>
+                            <input type="text" class="form-control" id="azureComputeTarget" name="AZURE_COMPUTE_TARGET">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="azureVmSize">VM Size</label>
+                            <input type="text" class="form-control" id="azureVmSize" name="AZURE_VM_SIZE">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GCP Vertex AI -->
+                <div class="provider-config" id="config-gcp_vertex">
+                    <h5 class="mb-3"><i class="fab fa-google me-2"></i>GCP Vertex AI Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="gcpProjectId">Project ID</label>
+                            <input type="text" class="form-control" id="gcpProjectId" name="GCP_PROJECT_ID">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="gcpRegion">Region</label>
+                            <input type="text" class="form-control" id="gcpRegion" name="GCP_REGION">
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="gcpServiceAccountKeyPath">Service Account Key Path</label>
+                            <input type="text" class="form-control" id="gcpServiceAccountKeyPath" name="GCP_SERVICE_ACCOUNT_KEY_PATH">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="gcpMachineType">Machine Type</label>
+                            <input type="text" class="form-control" id="gcpMachineType" name="GCP_MACHINE_TYPE">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="gcpAcceleratorType">Accelerator Type</label>
+                            <input type="text" class="form-control" id="gcpAcceleratorType" name="GCP_ACCELERATOR_TYPE">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="gcpAcceleratorCount">Accelerator Count</label>
+                            <input type="number" class="form-control" id="gcpAcceleratorCount" name="GCP_ACCELERATOR_COUNT" min="1" max="8">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom GPU -->
+                <div class="provider-config" id="config-custom">
+                    <h5 class="mb-3"><i class="fas fa-server me-2"></i>Custom GPU Server Configuration</h5>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="customGpuEndpoint">GPU Endpoint</label>
+                            <input type="text" class="form-control" id="customGpuEndpoint" name="CUSTOM_GPU_ENDPOINT">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="customGpuApiKey">API Key</label>
+                            <input type="password" class="form-control" id="customGpuApiKey" name="CUSTOM_GPU_API_KEY">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="customGpuAuthToken">Auth Token</label>
+                            <input type="password" class="form-control" id="customGpuAuthToken" name="CUSTOM_GPU_AUTH_TOKEN">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="customGpuUsername">Username</label>
+                            <input type="text" class="form-control" id="customGpuUsername" name="CUSTOM_GPU_USERNAME">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="customGpuPassword">Password</label>
+                            <input type="password" class="form-control" id="customGpuPassword" name="CUSTOM_GPU_PASSWORD">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <!-- GPU Training Options -->
+                <h5 class="mb-3">GPU Training Options</h5>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="gpuJobTimeout">Job Timeout (seconds)</label>
+                        <input type="number" class="form-control" id="gpuJobTimeout" name="GPU_JOB_TIMEOUT" min="60">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="gpuFallbackToLocal">Fallback to Local</label>
+                        <select class="form-select" id="gpuFallbackToLocal" name="GPU_FALLBACK_TO_LOCAL">
+                            <option value="True">Enabled</option>
+                            <option value="False">Disabled</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="gpuMaxRetries">Max Retries</label>
+                        <input type="number" class="form-control" id="gpuMaxRetries" name="GPU_MAX_RETRIES" min="0" max="10">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <button type="button" class="btn btn-reset" id="resetDefaultsBtn">
+                    <i class="fas fa-undo me-2"></i>Reset to Defaults
+                </button>
+                <div>
+                    <a href="/" class="btn btn-secondary me-2">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-save">
+                        <i class="fas fa-save me-2"></i>Save Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Show alert message
+        function showAlert(message, type = 'success') {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            document.getElementById('alertContainer').innerHTML = alertHtml;
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = document.querySelector('.alert');
+                if (alert) {
+                    alert.classList.remove('show');
+                    setTimeout(() => alert.remove(), 150);
+                }
+            }, 5000);
+        }
+
+        // Load current settings
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const settings = data.settings;
+                    
+                    // Populate form fields
+                    Object.keys(settings).forEach(key => {
+                        const input = document.querySelector(`[name="${key}"]`);
+                        if (input) {
+                            input.value = settings[key];
+                        }
+                    });
+                    
+                    // Show appropriate provider configs
+                    showProviderConfig();
+                    showCloudGpuProviderConfig();
+                } else {
+                    showAlert('Failed to load settings: ' + data.message, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading settings: ' + error.message, 'danger');
+            }
+        }
+
+        // Show/hide LLM provider config sections
+        function showProviderConfig() {
+            const provider = document.getElementById('llmProvider').value;
+            document.querySelectorAll('#config-openai, #config-azure_openai, #config-anthropic, #config-deepseek').forEach(el => {
+                el.classList.remove('active');
+            });
+            const configEl = document.getElementById(`config-${provider}`);
+            if (configEl) {
+                configEl.classList.add('active');
+            }
+        }
+
+        // Show/hide Cloud GPU provider config sections
+        function showCloudGpuProviderConfig() {
+            const provider = document.getElementById('cloudGpuProvider').value;
+            document.querySelectorAll('#config-aws_sagemaker, #config-azure_ml, #config-gcp_vertex, #config-custom').forEach(el => {
+                el.classList.remove('active');
+            });
+            const configEl = document.getElementById(`config-${provider}`);
+            if (configEl) {
+                configEl.classList.add('active');
+            }
+        }
+
+        // Save settings
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const settings = {};
+            
+            for (let [key, value] of formData.entries()) {
+                settings[key] = value;
+            }
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Settings saved successfully! The application may need to be restarted for some changes to take effect.', 'success');
+                } else {
+                    showAlert('Failed to save settings: ' + data.message, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error saving settings: ' + error.message, 'danger');
+            }
+        });
+
+        // Reset to defaults
+        document.getElementById('resetDefaultsBtn').addEventListener('click', async () => {
+            if (confirm('Are you sure you want to reset all settings to their default values?')) {
+                try {
+                    const response = await fetch('/api/settings/reset', {
+                        method: 'POST'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showAlert('Settings reset to defaults', 'success');
+                        loadSettings();
+                    } else {
+                        showAlert('Failed to reset settings: ' + data.message, 'danger');
+                    }
+                } catch (error) {
+                    showAlert('Error resetting settings: ' + error.message, 'danger');
+                }
+            }
+        });
+
+        // Event listeners for provider changes
+        document.getElementById('llmProvider').addEventListener('change', showProviderConfig);
+        document.getElementById('cloudGpuProvider').addEventListener('change', showCloudGpuProviderConfig);
+
+        // Load settings on page load
+        document.addEventListener('DOMContentLoaded', loadSettings);
+    </script>
+</body>
+</html>

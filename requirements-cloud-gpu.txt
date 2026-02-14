@@ -1,0 +1,28 @@
+# Optional Cloud GPU Dependencies for AceML Studio
+# =================================================
+# Install these dependencies based on your cloud provider choice
+# Use: pip install -r requirements-cloud-gpu.txt
+
+# ─────────────────────────── AWS SageMaker ───────────────────────────
+# For AWS SageMaker GPU support
+boto3>=1.26.0
+sagemaker>=2.150.0
+
+# ─────────────────────────── Azure ML ────────────────────────────────
+# For Azure ML GPU support
+azure-ai-ml>=1.11.0
+azure-identity>=1.14.0
+
+# ─────────────────────────── GCP Vertex AI ───────────────────────────
+# For GCP Vertex AI GPU support
+google-cloud-aiplatform>=1.35.0
+
+# ─────────────────────────── Custom GPU Server ───────────────────────
+# For custom GPU server REST API integration (already in main requirements)
+# requests>=2.31.0
+
+# ─────────────────────────── General Dependencies ────────────────────
+# These are already in requirements.txt but listed here for reference
+# numpy>=1.24.0
+# pandas>=2.0.0
+# scikit-learn>=1.3.0

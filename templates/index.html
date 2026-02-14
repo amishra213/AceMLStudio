@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AceML Studio</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <!-- Marked.js for markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <i class="fas fa-atom brand-icon"></i>
+                <span class="brand-text">AceML Studio</span>
+            </div>
+            <div class="sidebar-nav">
+                <a class="nav-item active" data-section="dashboard" href="#" title="Overview of your ML project with quick stats and pipeline workflow">
+                    <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+                </a>
+                <div class="nav-group-label">DATA PIPELINE</div>
+                <a class="nav-item" data-section="upload" href="#" title="Upload and configure your dataset">
+                    <i class="fas fa-cloud-upload-alt"></i><span>Upload Data</span>
+                </a>
+                <a class="nav-item" data-section="quality" href="#" title="Analyze data quality, find missing values and outliers">
+                    <i class="fas fa-search-plus"></i><span>Data Quality</span>
+                </a>
+                <a class="nav-item" data-section="cleaning" href="#" title="Clean your data: handle missing values, duplicates, and outliers">
+                    <i class="fas fa-broom"></i><span>Data Cleaning</span>
+                </a>
+                <a class="nav-item" data-section="features" href="#" title="Create new features from existing data to improve predictions">
+                    <i class="fas fa-cogs"></i><span>Feature Engineering</span>
+                </a>
+                <a class="nav-item" data-section="transform" href="#" title="Scale numbers and encode categories for ML algorithms">
+                    <i class="fas fa-exchange-alt"></i><span>Transformations</span>
+                </a>
+                <a class="nav-item" data-section="dimensions" href="#" title="Reduce number of features while keeping important information">
+                    <i class="fas fa-compress-arrows-alt"></i><span>Reduce Dimensions</span>
+                </a>
+                <div class="nav-group-label">MODELING</div>
+                <a class="nav-item" data-section="training" href="#" title="Train machine learning models on your data">
+                    <i class="fas fa-brain"></i><span>Train Models</span>
+                </a>
+                <a class="nav-item" data-section="evaluation" href="#" title="Evaluate model performance with metrics and visualizations">
+                    <i class="fas fa-chart-bar"></i><span>Evaluation</span>
+                </a>
+                <a class="nav-item" data-section="visualize" href="#" title="Create charts and plots to understand data and model performance">
+                    <i class="fas fa-chart-line"></i><span>Visualizations</span>
+                </a>
+                <a class="nav-item" data-section="tuning" href="#" title="Optimize model settings for better performance">
+                    <i class="fas fa-sliders-h"></i><span>Tuning</span>
+                </a>
+                <div class="nav-group-label">TRACKING</div>
+                <a class="nav-item" data-section="experiments" href="#" title="Track and compare all your experiments">
+                    <i class="fas fa-flask"></i><span>Experiments</span>
+                </a>
+                <a class="nav-item" data-section="ai" href="#" title="Get AI-powered insights and recommendations">
+                    <i class="fas fa-robot"></i><span>AI Insights</span>
+                </a>
+                <div class="nav-group-label">SYSTEM</div>
+                <a class="nav-item" href="/settings" title="Configure application settings and credentials">
+                    <i class="fas fa-cog"></i><span>Settings</span>
+                </a>
+            </div>
+            <div class="sidebar-footer">
+                <small>v1.0.0</small>
+            </div>
+        </nav>
+
+        <!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <button class="btn btn-sm btn-outline-secondary d-md-none" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h5 class="section-title mb-0" id="sectionTitle">Dashboard</h5>
+                <div class="top-bar-actions">
+                    <span class="badge bg-secondary" id="datasetBadge" style="display:none" title="Currently loaded dataset">
+                        <i class="fas fa-database me-1"></i><span id="datasetName"></span>
+                    </span>
+                    <button class="btn btn-sm btn-outline-danger" id="resetBtn" title="Reset entire session - clears data, models, and returns to fresh start">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-area" id="contentArea">
+
+                <!-- ══════════ DASHBOARD ══════════ -->
+                <section class="content-section active" id="sec-dashboard">
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="stat-card" title="Total number of rows (samples/records) in your dataset">
+                                <div class="stat-icon bg-primary-subtle"><i class="fas fa-database"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-value" id="statRows">—</span>
+                                    <span class="stat-label">Rows</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card" title="Total number of columns (features/variables) in your dataset">
+                                <div class="stat-icon bg-success-subtle"><i class="fas fa-columns"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-value" id="statCols">—</span>
+                                    <span class="stat-label">Columns</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card" title="Overall data quality score (0-100) based on completeness, consistency, and cleanliness">
+                                <div class="stat-icon bg-warning-subtle"><i class="fas fa-heartbeat"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-value" id="statQuality">—</span>
+                                    <span class="stat-label">Quality Score</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card" title="Number of experiments you've saved for tracking and comparison">
+                                <div class="stat-icon bg-info-subtle"><i class="fas fa-flask"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-value" id="statExperiments">0</span>
+                                    <span class="stat-label">Experiments</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-md-8">
+                            <div class="card glass-card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-route me-2"></i>ML Pipeline Workflow</span>
+                                    <button class="help-toggle-btn" data-help="pipeline-help" style="font-size: 0.7rem;"><i class="fas fa-question-circle"></i>Explain workflow</button>
+                                </div>
+                                <div class="help-panel" id="pipeline-help" style="margin: 0 0 16px 0;">
+                                    <div class="help-panel-content" style="font-size: 0.8rem;">
+                                        <p><strong>The Machine Learning Pipeline:</strong> Follow these steps in order for best results. Each step prepares your data for the next.</p>
+                                        <ol style="margin: 8px 0; padding-left: 24px; line-height: 1.8;">
+                                            <li><strong>Upload:</strong> Start by loading your data file</li>
+                                            <li><strong>Quality:</strong> Check for issues (missing values, outliers)</li>
+                                            <li><strong>Clean:</strong> Fix the issues found</li>
+                                            <li><strong>Features:</strong> Create helpful new columns</li>
+                                            <li><strong>Transform:</strong> Scale numbers and encode categories</li>
+                                            <li><strong>Train:</strong> Let the system learn patterns from your data</li>
+                                            <li><strong>Evaluate:</strong> Test how well it works</li>
+                                            <li><strong>Tune:</strong> (Optional) Fine-tune for better performance</li>
+                                        </ol>
+                                        <p style="margin-bottom: 0;"><strong>Tip:</strong> You can revisit steps as needed. Machine learning is iterative!</p>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="pipeline-steps">
+                                        <div class="pipe-step" data-goto="upload"><i class="fas fa-upload"></i><span>Upload</span></div>
+                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step" data-goto="quality"><i class="fas fa-search"></i><span>Quality</span></div>
+                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step" data-goto="cleaning"><i class="fas fa-broom"></i><span>Clean</span></div>
+                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step" data-goto="features"><i class="fas fa-cogs"></i><span>Features</span></div>
+                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step" data-goto="transform"><i class="fas fa-exchange-alt"></i><span>Transform</span></div>
+                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step" data-goto="training"><i class="fas fa-brain"></i><span>Train</span></div>
+                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step" data-goto="evaluation"><i class="fas fa-chart-bar"></i><span>Evaluate</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-bolt me-2"></i>Quick Actions</div>
+                                <div class="card-body">
+                                    <button class="btn btn-outline-primary w-100 mb-2 quick-action" data-goto="upload" title="Upload your dataset to get started with ML">
+                                        <i class="fas fa-upload me-2"></i>Upload Dataset
+                                    </button>
+                                    <div class="control-description mb-3">Start here: Load your CSV, Excel, or JSON data file</div>
+                                    <button class="btn btn-outline-success w-100 mb-2 quick-action" data-goto="ai" title="Get AI-powered insights and recommendations">
+                                        <i class="fas fa-robot me-2"></i>AI Analysis
+                                    </button>
+                                    <div class="control-description mb-3">Get expert guidance and recommendations from AI</div>
+                                    <button class="btn btn-outline-info w-100 quick-action" data-goto="experiments" title="View and compare your saved experiments">
+                                        <i class="fas fa-flask me-2"></i>View Experiments
+                                    </button>
+                                    <div class="control-description">Track your progress and compare different approaches</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ UPLOAD ══════════ -->
+                <section class="content-section" id="sec-upload">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-cloud-upload-alt me-2"></i>Upload Dataset</h6>
+                        <button class="help-toggle-btn" data-help="upload-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="upload-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Data Upload</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> This is where you start your machine learning journey by bringing in your data.</p>
+                            <p><strong>What happens here?</strong> You'll upload a file containing your data (like a spreadsheet) and tell the system which column you want to predict (the target).</p>
+                            <p><strong>Easy analogy:</strong> Think of this like giving a recipe to a chef. The data is your ingredients, and the target column is the dish you want to make.</p>
+                            <p><strong>Supported formats:</strong> CSV files (.csv), Excel files (.xlsx, .xls), JSON, and Parquet files.</p>
+                            <p><strong>Next steps:</strong> After uploading, you'll set a target column (what you want to predict) and choose whether you're doing classification (predicting categories) or regression (predicting numbers).</p>
+                        </div>
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-cloud-upload-alt me-2"></i>Upload Dataset</div>
+                                <div class="card-body">
+                                    <div class="upload-zone" id="uploadZone">
+                                        <i class="fas fa-file-csv upload-icon"></i>
+                                        <p class="mb-1"><strong>Drag & drop your file here</strong></p>
+                                        <p class="text-muted small mb-3">or click to browse</p>
+                                        <p class="text-muted small">Supports: CSV, Excel, JSON, Parquet (up to 500 MB)</p>
+                                        <p class="text-muted small mb-0"><i class="fas fa-bolt me-1"></i>Large files auto-upload in chunks for reliability</p>
+                                        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.json,.parquet" hidden>
+                                    </div>
+                                    <div id="uploadProgress" style="display:none" class="mt-3">
+                                        <div class="progress" style="height: 22px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%"></div>
+                                        </div>
+                                        <small class="text-muted mt-1 d-block">Preparing upload…</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-bullseye me-2"></i>Configure Target</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Target Column</label>
+                                        <select class="form-select" id="targetSelect"><option value="">— Upload data first —</option></select>
+                                        <div class="control-description"><i class="fas fa-lightbulb"></i>This is the column you want to predict. For example, 'Price', 'Customer Churn', or 'Sales'.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Task Type</label>
+                                        <div class="btn-group w-100" role="group">
+                                            <input type="radio" class="btn-check" name="taskType" id="taskClf" value="classification" checked>
+                                            <label class="btn btn-outline-primary" for="taskClf">Classification</label>
+                                            <input type="radio" class="btn-check" name="taskType" id="taskReg" value="regression">
+                                            <label class="btn btn-outline-primary" for="taskReg">Regression</label>
+                                        </div>
+                                        <div class="control-description"><i class="fas fa-lightbulb"></i><strong>Classification:</strong> Predicting categories (Yes/No, High/Medium/Low). <strong>Regression:</strong> Predicting numbers (price, age, sales amount).</div>
+                                    </div>
+                                    <button class="btn btn-primary w-100" id="setTargetBtn" disabled>
+                                        <i class="fas fa-check me-2"></i>Set Target
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Data Preview -->
+                    <div class="card glass-card mt-4" id="previewCard" style="display:none">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-table me-2"></i>Data Preview</span>
+                            <span class="badge bg-primary" id="previewShape"></span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0" id="previewTable"></table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ DATA QUALITY ══════════ -->
+                <section class="content-section" id="sec-quality">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-search-plus me-2"></i>Data Quality Analysis</h6>
+                        <button class="help-toggle-btn" data-help="quality-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="quality-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Data Quality</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> This step examines your data for common issues that could affect your predictions.</p>
+                            <p><strong>Why is it important?</strong> Just like you wouldn't cook with spoiled ingredients, you can't build good predictions with bad data.</p>
+                            <p><strong>What gets checked:</strong></p>
+                            <ul>
+                                <li><strong>Missing values:</strong> Empty cells in your data</li>
+                                <li><strong>Duplicates:</strong> Identical rows that could skew results</li>
+                                <li><strong>Data types:</strong> Whether columns contain numbers, text, or dates</li>
+                                <li><strong>Outliers:</strong> Unusual values that don't fit the pattern</li>
+                                <li><strong>Cardinality:</strong> How many unique values each column has</li>
+                            </ul>
+                            <p><strong>What you'll get:</strong> A detailed report with a quality score and specific issues to fix.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <button class="btn btn-primary btn-sm" id="runQualityBtn" title="Run comprehensive data quality analysis to identify issues"><i class="fas fa-play me-1"></i>Run Analysis</button>
+                            <button class="btn btn-outline-info btn-sm ms-2" id="aiQualityBtn" title="Get AI-powered insights about your data quality issues"><i class="fas fa-robot me-1"></i>AI Analysis</button>
+                        </div>
+                    </div>
+                    <div class="alert alert-info" style="font-size: 0.85rem;">
+                        <i class="fas fa-info-circle me-2"></i><strong>What gets analyzed:</strong> Missing values, duplicates, data types, outliers, cardinality, and overall quality score (0-100)
+                    </div>
+                    <div id="qualityResults">
+                        <div class="text-center text-muted py-5"><i class="fas fa-search fa-3x mb-3 d-block"></i>Click "Run Analysis" to scan your data for quality issues.</div>
+                    </div>
+                </section>
+
+                <!-- ══════════ DATA CLEANING ══════════ -->
+                <section class="content-section" id="sec-cleaning">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-broom me-2"></i>Data Cleaning</h6>
+                        <button class="help-toggle-btn" data-help="cleaning-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="cleaning-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Data Cleaning</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> This step fixes the problems found during data quality analysis.</p>
+                            <p><strong>Why clean data?</strong> Machine learning models can't work with missing or messy data. Cleaning ensures accurate predictions.</p>
+                            <p><strong>Common cleaning tasks:</strong></p>
+                            <ul>
+                                <li><strong>Missing values:</strong> Fill empty cells with averages, most common values, or remove rows</li>
+                                <li><strong>Duplicates:</strong> Remove identical rows that could bias your model</li>
+                                <li><strong>Outliers:</strong> Handle extreme values that don't fit the pattern</li>
+                                <li><strong>Drop columns:</strong> Remove irrelevant or redundant columns that won't help predictions</li>
+                            </ul>
+                            <p><strong>Strategies explained:</strong></p>
+                            <ul>
+                                <li><strong>Drop rows:</strong> Remove rows with missing data (use when you have plenty of data)</li>
+                                <li><strong>Mean:</strong> Fill with average value (good for normally distributed numbers)</li>
+                                <li><strong>Median:</strong> Fill with middle value (better when you have outliers)</li>
+                                <li><strong>Mode:</strong> Fill with most common value (good for categories)</li>
+                                <li><strong>Forward fill:</strong> Use the previous value (good for time series)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <button class="btn btn-outline-info btn-sm" id="aiCleanBtn" title="Get AI recommendations for the best cleaning strategy for your specific dataset"><i class="fas fa-robot me-1"></i>AI Suggestions</button>
+                    </div>
+                    <div class="alert alert-warning" style="font-size: 0.85rem;">
+                        <i class="fas fa-exclamation-triangle me-2"></i><strong>Important:</strong> Cleaning operations modify your data. Run data quality analysis first to understand what needs cleaning.
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Missing Values</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Strategy</label>
+                                        <select class="form-select" id="missingStrategy">
+                                            <option value="drop_missing">Drop rows with missing</option>
+                                            <option value="impute_mean">Impute with Mean</option>
+                                            <option value="impute_median">Impute with Median</option>
+                                            <option value="impute_mode">Impute with Mode</option>
+                                            <option value="impute_zero">Fill with Zero</option>
+                                            <option value="impute_ffill">Forward Fill</option>
+                                        </select>
+                                        <div class="control-description"><i class="fas fa-lightbulb"></i>Choose how to handle empty cells. Median is safest for most numeric data, Mode for categories.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Columns (leave empty for all)</label>
+                                        <select class="form-select" id="missingColumns" multiple title="Select specific columns to clean, or leave empty to apply to all columns with missing values"></select>
+                                        <div class="control-description">Select specific columns or leave empty to apply strategy to all columns</div>
+                                    </div>
+                                    <button class="btn btn-warning w-100" id="applyMissingBtn" title="Apply the selected strategy to handle missing values"><i class="fas fa-broom me-1"></i>Apply</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Duplicates & Outliers</div>
+                                <div class="card-body">
+                                    <button class="btn btn-outline-warning w-100 mb-2" id="dropDuplicatesBtn" title="Remove rows that are exact duplicates"><i class="fas fa-copy me-1"></i>Remove Duplicates</button>
+                                    <div class="control-description mb-3">Removes identical rows that could bias your model. Keeps the first occurrence of each duplicate.</div>
+                                    <button class="btn btn-outline-warning w-100 mb-2" id="clipOutliersBtn" title="Cap extreme values using IQR method"><i class="fas fa-cut me-1"></i>Clip Outliers (IQR)</button>
+                                    <div class="control-description mb-3">Caps extreme values to reduce their impact (safer than removing). Uses Interquartile Range method.</div>
+                                    <button class="btn btn-outline-danger w-100" id="removeOutliersBtn" title="Remove rows containing outlier values (use with caution)"><i class="fas fa-trash me-1"></i>Remove Outlier Rows</button>
+                                    <div class="control-description">Deletes rows with extreme values (use carefully - you lose data). Consider clipping instead.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-4 mt-2">
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Drop Columns</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Select Columns to Drop</label>
+                                        <select class="form-select" id="dropColumnsSelect" multiple title="Select one or more columns to permanently remove from the dataset"></select>
+                                        <div class="control-description">Choose columns that are not useful for your analysis. These will be permanently removed.</div>
+                                    </div>
+                                    <button class="btn btn-danger w-100" id="dropColumnsBtn" title="Permanently remove selected columns from the dataset"><i class="fas fa-columns me-1"></i>Drop Selected Columns</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card glass-card mt-4" id="cleaningLog" style="display:none">
+                        <div class="card-header">Cleaning Log</div>
+                        <div class="card-body" id="cleaningLogBody"></div>
+                    </div>
+                </section>
+
+                <!-- ══════════ FEATURE ENGINEERING ══════════ -->
+                <section class="content-section" id="sec-features">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-cogs me-2"></i>Feature Engineering</h6>
+                        <button class="help-toggle-btn" data-help="features-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="features-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Feature Engineering</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Feature engineering creates new, more useful columns from your existing data to help the model make better predictions.</p>
+                            <p><strong>Simple analogy:</strong> If you're predicting house prices, instead of just the build date, you might create a new column for "house age" - that's more directly useful!</p>
+                            <p><strong>Available transformations:</strong></p>
+                            <ul>
+                                <li><strong>Date features:</strong> Extract year, month, day, day of week from dates. Example: From "2024-05-15" create "May", "Wednesday", "2024"</li>
+                                <li><strong>Log transform:</strong> Compresses large values, good for skewed data like income or prices</li>
+                                <li><strong>Square root:</strong> Similar to log but gentler, useful for count data</li>
+                                <li><strong>Text features:</strong> Extract length and word count from text columns</li>
+                            </ul>
+                            <p><strong>When to use:</strong> After cleaning and before training. Good features can dramatically improve prediction accuracy!</p>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <button class="btn btn-outline-info btn-sm" id="aiFeatureBtn" title="Get AI-powered feature engineering suggestions based on your data"><i class="fas fa-robot me-1"></i>AI Suggestions</button>
+                    </div>
+                    <div class="alert alert-success" style="font-size: 0.85rem;">
+                        <i class="fas fa-lightbulb me-2"></i><strong>Pro Tip:</strong> Good features can improve model accuracy by 10-30%! Focus on domain knowledge - what information would help a human make predictions?
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-lg-4">
+                            <div class="card glass-card">
+                                <div class="card-header">Date Features</div>
+                                <div class="card-body">
+                                    <label class="form-label">Date Columns</label>
+                                    <select class="form-select mb-3" id="dateFeatureCols" multiple></select>
+                                    <button class="btn btn-success w-100" id="extractDateBtn"><i class="fas fa-calendar me-1"></i>Extract Date Features</button>                                    <div class="control-description">Extracts year, month, day, day of week from date columns. Useful for finding seasonal patterns.</div>                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card glass-card">
+                                <div class="card-header">Log / Sqrt Transform</div>
+                                <div class="card-body">
+                                    <label class="form-label">Numeric Columns</label>
+                                    <select class="form-select mb-3" id="mathTransCols" multiple title="Select numeric columns with skewed distributions"></select>
+                                    <button class="btn btn-success w-100 mb-2" id="logTransBtn" title="Apply log transformation to compress large values and normalize skewed data"><i class="fas fa-chart-line me-1"></i>Log Transform</button>
+                                    <div class="control-description mb-2">Compresses large values. Good for right-skewed data like prices, income, or sales. Only works with positive values.</div>
+                                    <button class="btn btn-outline-success w-100" id="sqrtTransBtn" title="Apply square root transformation (gentler than log)"><i class="fas fa-square-root-alt me-1"></i>Sqrt Transform</button>
+                                    <div class="control-description">Gentler than log. Good for count data (# of items, visits, transactions, etc.). Works with zero and positive values.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card glass-card">
+                                <div class="card-header">Text Features</div>
+                                <div class="card-body">
+                                    <label class="form-label">Text Columns</label>
+                                    <select class="form-select mb-3" id="textFeatureCols" multiple></select>
+                                    <button class="btn btn-success w-100" id="textLenBtn"><i class="fas fa-font me-1"></i>Extract Length & Word Count</button>                                    <div class="control-description">Creates columns with character count and word count from text data.</div>                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card glass-card mt-4" id="featureLog" style="display:none">
+                        <div class="card-header">Feature Engineering Log</div>
+                        <div class="card-body" id="featureLogBody"></div>
+                    </div>
+                </section>
+
+                <!-- ══════════ TRANSFORMATIONS ══════════ -->
+                <section class="content-section" id="sec-transform">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-exchange-alt me-2"></i>Data Transformations</h6>
+                        <button class="help-toggle-btn" data-help="transform-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="transform-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Transformations</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Transformations convert your data into formats that machine learning models can understand and work with effectively.</p>
+                            <p><strong>Two main types:</strong></p>
+                            <p><strong>1. Scaling (for numbers):</strong></p>
+                            <ul>
+                                <li><strong>Standard Scaler:</strong> Makes all numbers have average=0 and spread=1. Use when data doesn't have extreme outliers.</li>
+                                <li><strong>MinMax Scaler:</strong> Squeezes all values between 0 and 1. Easy to interpret, good for neural networks.</li>
+                                <li><strong>Robust Scaler:</strong> Like Standard but ignores outliers. Use when you have extreme values.</li>
+                            </ul>
+                            <p><strong>2. Encoding (for categories/text):</strong></p>
+                            <ul>
+                                <li><strong>One-Hot Encoding:</strong> Converts categories into separate yes/no columns. Use for categories like "Red", "Blue", "Green".</li>
+                                <li><strong>Label Encoding:</strong> Converts categories to numbers (1, 2, 3). Use for ordered categories like "Low", "Medium", "High".</li>
+                                <li><strong>Ordinal Encoding:</strong> Similar to Label Encoding but preserves meaningful order for categorical data.</li>
+                                <li><strong>Target Encoding:</strong> Replaces categories with their average target value. Advanced technique, good for high-cardinality data.</li>
+                            </ul>
+                            <p><strong>3. Data Type Conversion:</strong></p>
+                            <ul>
+                                <li>Convert columns between different data types (integer, float, string, category, datetime, boolean) for proper processing.</li>
+                            </ul>
+                            <p><strong>Why needed?</strong> Most ML algorithms only work with numbers, and they work better when numbers are on similar scales.</p>
+                        </div>
+                    </div>
+                    <h6 class="mb-4">Data Transformations</h6>
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Scaling</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Method</label>
+                                        <select class="form-select" id="scaleMethod">
+                                            <option value="standard">StandardScaler (mean=0, std=1)</option>
+                                            <option value="minmax">MinMaxScaler (0 to 1)</option>
+                                            <option value="robust">RobustScaler</option>
+                                        </select>
+                                        <div class="control-description">Standard is most common. MinMax for neural networks. Robust when you have outliers.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Columns</label>
+                                        <select class="form-select" id="scaleCols" multiple title="Select numeric columns to scale"></select>
+                                        <div class="control-description">Select which numeric columns to scale. Leave empty to scale all numeric columns.</div>
+                                    </div>
+                                    <button class="btn btn-primary w-100" id="applyScaleBtn" title="Apply scaling transformation to selected columns"><i class="fas fa-ruler me-1"></i>Apply Scaling</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Encoding</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Method</label>
+                                        <select class="form-select" id="encodeMethod">
+                                            <option value="one_hot_encode">One-Hot Encoding</option>
+                                            <option value="label_encode">Label Encoding</option>
+                                            <option value="ordinal_encode">Ordinal Encoding</option>
+                                            <option value="target_encode">Target Encoding</option>
+                                        </select>
+                                        <div class="control-description">One-Hot for low-cardinality (few unique values). Label/Ordinal for ordered. Target for high-cardinality.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Columns</label>
+                                        <select class="form-select" id="encodeCols" multiple title="Select categorical/text columns to encode"></select>
+                                        <div class="control-description">Select which categorical columns to encode. Text/category columns must be encoded before training.</div>
+                                    </div>
+                                    <button class="btn btn-primary w-100" id="applyEncodeBtn" title="Apply encoding transformation to selected columns"><i class="fas fa-code me-1"></i>Apply Encoding</button>
+                                </div>
+                            </div>
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Data Type Conversion</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Target Data Type</label>
+                                        <select class="form-select" id="convertDtype">
+                                            <option value="int">Integer</option>
+                                            <option value="float">Float</option>
+                                            <option value="str">String/Text</option>
+                                            <option value="category">Category</option>
+                                            <option value="datetime">DateTime</option>
+                                            <option value="bool">Boolean</option>
+                                        </select>
+                                        <div class="control-description">Convert columns to specified data type for proper processing and analysis.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Columns</label>
+                                        <select class="form-select" id="convertCols" multiple title="Select columns to convert"></select>
+                                        <div class="control-description">Select which columns to convert. Choose appropriate type based on your data.</div>
+                                    </div>
+                                    <button class="btn btn-primary w-100" id="applyConvertBtn" title="Apply data type conversion to selected columns"><i class="fas fa-exchange-alt me-1"></i>Apply Conversion</button>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    <div class="card glass-card mt-4" id="transformLog" style="display:none">
+                        <div class="card-header">Transformation Log</div>
+                        <div class="card-body" id="transformLogBody"></div>
+                    </div>
+                </section>
+
+                <!-- ══════════ DIMENSIONALITY REDUCTION ══════════ -->
+                <section class="content-section" id="sec-dimensions">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-compress-arrows-alt me-2"></i>Dimensionality Reduction</h6>
+                        <button class="help-toggle-btn" data-help="dimensions-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="dimensions-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Dimensionality Reduction</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> This reduces the number of columns in your data while keeping the most important information.</p>
+                            <p><strong>Why reduce dimensions?</strong> Too many columns can:</p>
+                            <ul>
+                                <li>Make models slow and complex</li>
+                                <li>Cause overfitting (model memorizes instead of learning)</li>
+                                <li>Create confusion with redundant information</li>
+                            </ul>
+                            <p><strong>Methods explained:</strong></p>
+                            <ul>
+                                <li><strong>PCA:</strong> Combines related columns into fewer "super columns" that capture most variation. Like summarizing a long report.</li>
+                                <li><strong>Variance Threshold:</strong> Removes columns that barely change - they don't help predict anything.</li>
+                                <li><strong>Correlation Filter:</strong> Removes duplicate/similar columns that provide the same information.</li>
+                                <li><strong>Feature Importance:</strong> Keeps only columns that most influence the target prediction.</li>
+                            </ul>
+                            <p><strong>When to use:</strong> If you have dozens or hundreds of columns, or if your model is slow/overfitting.</p>
+                        </div>
+                    </div>
+                    <h6 class="mb-4">Dimensionality Reduction</h6>
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Reduction Method</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Method</label>
+                                        <select class="form-select" id="reduceMethod">
+                                            <option value="pca">PCA (Principal Components)</option>
+                                            <option value="variance_threshold">Variance Threshold</option>
+                                            <option value="correlation_filter">Correlation Filter</option>
+                                            <option value="feature_importance">Feature Importance Selection</option>
+                                        </select>
+                                        <div class="control-description">PCA is most common. Variance removes constant columns. Correlation removes redundant columns. Importance keeps only influential features.</div>
+                                    </div>
+                                    <div class="mb-3" id="pcaComponentsDiv">
+                                        <label class="form-label">Components (or variance ratio 0-1)</label>
+                                        <input type="number" class="form-control" id="pcaComponents" value="0.95" step="0.05" min="0.1" max="100" title="Number of components or variance ratio to retain">
+                                        <div class="control-description">0.95 = keep 95% of info. Values < 1 = variance ratio. Values ≥ 1 = exact number of components. Higher = more features kept.</div>
+                                    </div>
+                                    <button class="btn btn-primary w-100" id="applyReduceBtn" title="Apply dimensionality reduction to your dataset"><i class="fas fa-compress me-1"></i>Apply Reduction</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card glass-card" id="reduceResultCard" style="display:none">
+                                <div class="card-header">Reduction Results</div>
+                                <div class="card-body" id="reduceResultBody"></div>
+                            </div>
+                            <div id="variancePlot"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ MODEL TRAINING ══════════ -->
+                <section class="content-section" id="sec-training">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-brain me-2"></i>Model Training</h6>
+                        <button class="help-toggle-btn" data-help="training-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="training-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Model Training</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> This is where the machine learning actually happens! The system learns patterns from your data to make predictions.</p>
+                            <p><strong>How it works:</strong> Your data is split into 3 parts:</p>
+                            <ul>
+                                <li><strong>Training set:</strong> The model learns from this (usually 70-80% of data)</li>
+                                <li><strong>Validation set:</strong> Used to tune and improve the model (10-15%)</li>
+                                <li><strong>Test set:</strong> Final exam to see how well it really works (10-20%)</li>
+                            </ul>
+                            <p><strong>Think of it like:</strong> Training = studying for a test, Validation = practice tests, Test = the actual exam.</p>
+                            <p><strong>Multiple models:</strong> Different algorithms work better for different problems. The system will try several and show you which performs best.</p>
+                            <p><strong>Common models:</strong></p>
+                            <ul>
+                                <li><strong>Logistic Regression:</strong> Simple, fast, good baseline</li>
+                                <li><strong>Random Forest:</strong> Powerful, handles complex patterns</li>
+                                <li><strong>XGBoost/LightGBM:</strong> Often best performance, industry standard</li>
+                                <li><strong>Neural Networks:</strong> Very powerful for complex data</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <h6 class="mb-4">Model Training</h6>
+                    <div class="row g-4">
+                        <div class="col-lg-5">
+                            <div class="card glass-card">
+                                <div class="card-header">Select Models</div>
+                                <div class="card-body">
+                                    <div class="mb-3" id="modelCheckboxes"></div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label small">Test Size</label>
+                                            <input type="number" class="form-control form-control-sm" id="testSize" value="0.2" step="0.05" min="0.05" max="0.5" title="Fraction of data reserved for final testing (0.2 = 20%)">
+                                            <div class="control-description">% of data for final testing (default: 20%). Never seen by model during training.</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small">Val Size</label>
+                                            <input type="number" class="form-control form-control-sm" id="valSize" value="0.1" step="0.05" min="0.05" max="0.3" title="Fraction of data used for validation during training (0.1 = 10%)">
+                                            <div class="control-description">% of data for validation (default: 10%). Used to monitor training progress.</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-success w-100" id="trainBtn" title="Train all selected models on your prepared dataset"><i class="fas fa-play me-1"></i>Train Selected Models</button>
+                                    <div class="control-description mt-2">Training may take 1-10 minutes depending on data size and number of models selected. You'll get a comparison of all models.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-7">
+                            <div class="card glass-card" id="trainingResultsCard" style="display:none">
+                                <div class="card-header">Training Results</div>
+                                <div class="card-body" id="trainingResultsBody"></div>
+                            </div>
+                            <div id="trainingChart" class="mt-3"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ EVALUATION ══════════ -->
+                <section class="content-section" id="sec-evaluation">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-chart-bar me-2"></i>Model Evaluation</h6>
+                        <button class="help-toggle-btn" data-help="evaluation-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="evaluation-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Model Evaluation</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Evaluation shows how well your model performs by testing it on data it hasn't seen before.</p>
+                            <p><strong>Key metrics explained:</strong></p>
+                            <p><strong>For Classification (categories):</strong></p>
+                            <ul>
+                                <li><strong>Accuracy:</strong> % of correct predictions (90% = 9 out of 10 correct)</li>
+                                <li><strong>Precision:</strong> Of predictions marked "Yes", how many were actually "Yes"? (Quality of positive predictions)</li>
+                                <li><strong>Recall:</strong> Of all actual "Yes" cases, how many did we catch? (Completeness)</li>
+                                <li><strong>F1 Score:</strong> Balance between precision and recall (harmonic mean)</li>
+                            </ul>
+                            <p><strong>For Regression (numbers):</strong></p>
+                            <ul>
+                                <li><strong>MAE (Mean Absolute Error):</strong> Average prediction error in original units (lower is better)</li>
+                                <li><strong>RMSE:</strong> Similar to MAE but penalizes large errors more</li>
+                                <li><strong>R² Score:</strong> How much variation is explained (1.0 = perfect, 0 = bad, negative = very bad)</li>
+                            </ul>
+                            <p><strong>Good scores:</strong> Depends on your problem, but generally: Accuracy/F1 > 0.7 is decent, > 0.9 is excellent. R² > 0.5 is decent, > 0.8 is excellent.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h6 class="mb-0">Model Evaluation</h6>
+                        <div>
+                            <select class="form-select form-select-sm d-inline-block w-auto" id="evalModelSelect" title="Choose which trained model to evaluate">
+                                <option value="">— Select model —</option>
+                            </select>
+                            <select class="form-select form-select-sm d-inline-block w-auto ms-2" id="evalDataset" title="Choose which dataset to evaluate on">
+                                <option value="test">Test Set</option>
+                                <option value="val">Validation Set</option>
+                                <option value="train">Train Set</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm ms-2" id="evaluateBtn" title="Evaluate the selected model's performance"><i class="fas fa-chart-bar me-1"></i>Evaluate</button>
+                            <button class="btn btn-outline-info btn-sm ms-2" id="aiExplainBtn" title="Get AI explanation of what these metrics mean for your project"><i class="fas fa-robot me-1"></i>AI Explain</button>
+                        </div>
+                    </div>
+                    <div class="alert alert-info" style="font-size: 0.85rem;">
+                        <i class="fas fa-info-circle me-2"></i><strong>Which dataset to use:</strong> <strong>Test</strong> = final performance (use this for reporting), <strong>Validation</strong> = during development, <strong>Train</strong> = check for overfitting (should be higher than test)
+                    </div>
+                    <div id="evalResults">
+                        <div class="text-center text-muted py-5"><i class="fas fa-chart-bar fa-3x mb-3 d-block"></i>Train models first, then evaluate.</div>
+                    </div>
+                </section>
+
+                <!-- ══════════ VISUALIZATIONS ══════════ -->
+                <section class="content-section" id="sec-visualize">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-chart-line me-2"></i>Data Visualizations</h6>
+                        <button class="help-toggle-btn" data-help="viz-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="viz-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Visualizations</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Visual representations of your data and model performance to gain insights.</p>
+                            <p><strong>Why visualize?</strong> A picture is worth a thousand numbers! Visualizations help you:</p>
+                            <ul>
+                                <li>Understand data patterns and distributions</li>
+                                <li>Identify relationships between variables</li>
+                                <li>Spot outliers and anomalies</li>
+                                <li>Evaluate model performance visually</li>
+                                <li>Compare different models</li>
+                            </ul>
+                            <p><strong>Visualization types:</strong></p>
+                            <ul>
+                                <li><strong>Histogram:</strong> Shows distribution of a numeric column</li>
+                                <li><strong>Box Plot:</strong> Displays spread and outliers</li>
+                                <li><strong>Scatter Plot:</strong> Shows relationship between two variables</li>
+                                <li><strong>Correlation Heatmap:</strong> Reveals how variables relate to each other</li>
+                                <li><strong>Confusion Matrix:</strong> Shows model prediction accuracy</li>
+                                <li><strong>ROC Curve:</strong> Evaluates classification performance</li>
+                                <li><strong>Feature Importance:</strong> Shows which features matter most</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Tabs for different viz types -->
+                    <ul class="nav nav-pills mb-4" id="vizTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="data-viz-tab" data-bs-toggle="pill" data-bs-target="#data-viz" type="button" role="tab" title="Explore your data through various charts and graphs">
+                                <i class="fas fa-database me-1"></i>Data Exploration
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="model-viz-tab" data-bs-toggle="pill" data-bs-target="#model-viz" type="button" role="tab" title="Visualize how well your models are performing">
+                                <i class="fas fa-brain me-1"></i>Model Performance
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="alert alert-info" style="font-size: 0.85rem;">
+                        <i class="fas fa-lightbulb me-2"></i><strong>Visualization Tips:</strong> 
+                        <span class="d-block mt-1">• <strong>Data Exploration</strong> - Understand patterns, distributions, and relationships in your raw data</span>
+                        <span class="d-block">• <strong>Model Performance</strong> - Evaluate prediction accuracy and identify where your model succeeds or fails</span>
+                    </div>
+
+                    <div class="tab-content" id="vizTabContent">
+                        <!-- Data Exploration Visualizations -->
+                        <div class="tab-pane fade show active" id="data-viz" role="tabpanel">
+                            <div class="row g-4">
+                                <!-- Histogram -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-chart-bar me-2"></i>Histogram
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Column</label>
+                                                <select class="form-select" id="vizHistColumn" title="Choose a numeric column to visualize its distribution"></select>
+                                                <div class="control-description">Shows how values are distributed across ranges (e.g., how many customers in each age group)</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Bins</label>
+                                                <input type="number" class="form-control" id="vizHistBins" value="30" min="5" max="100" title="Number of bars/ranges to divide the data into">
+                                                <div class="control-description">More bins = more detail. Fewer bins = clearer pattern. 30 is a good default.</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizHistBtn" title="Create a histogram showing the distribution of values">
+                                                <i class="fas fa-chart-bar me-1"></i>Generate Histogram
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Box Plot -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-box me-2"></i>Box Plot
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Columns (select multiple)</label>
+                                                <select class="form-select" id="vizBoxColumns" multiple size="5" title="Select one or more numeric columns to compare"></select>
+                                                <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                                                <div class="control-description mt-2">Box plots show the spread, median, and outliers. Great for comparing multiple columns side-by-side.</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizBoxBtn" title="Create box plots to visualize spread and outliers">
+                                                <i class="fas fa-box me-1"></i>Generate Box Plot
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Scatter Plot -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-braille me-2"></i>Scatter Plot
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">X Axis</label>
+                                                <select class="form-select" id="vizScatterX" title="Choose column for horizontal axis"></select>
+                                                <div class="control-description">Variable to plot on horizontal axis</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Y Axis</label>
+                                                <select class="form-select" id="vizScatterY" title="Choose column for vertical axis"></select>
+                                                <div class="control-description">Variable to plot on vertical axis</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Color By (optional)</label>
+                                                <select class="form-select" id="vizScatterHue" title="Color points by categories to reveal patterns">
+                                                    <option value="">None</option>
+                                                </select>
+                                                <div class="control-description">Add color to show categories or groups within the data</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizScatterBtn" title="Create scatter plot to visualize relationships between two variables">
+                                                <i class="fas fa-braille me-1"></i>Generate Scatter Plot
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Correlation Heatmap -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-th me-2"></i>Correlation Heatmap
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Columns (optional - leave empty for all numeric)</label>
+                                                <select class="form-select" id="vizCorrColumns" multiple size="5" title="Select specific columns or leave empty for all"></select>
+                                                <small class="text-muted">Hold Ctrl/Cmd to select multiple, or leave empty for all</small>
+                                                <div class="control-description mt-2">Shows how strongly each pair of variables is related. Values close to 1/-1 = strong correlation, close to 0 = no relationship.</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizCorrBtn" title="Create correlation heatmap to find relationships between variables">
+                                                <i class="fas fa-th me-1"></i>Generate Heatmap
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Model Performance Visualizations -->
+                        <div class="tab-pane fade" id="model-viz" role="tabpanel">
+                            <div class="row g-4">
+                                <!-- Confusion Matrix -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-table me-2"></i>Confusion Matrix
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Model</label>
+                                                <select class="form-select" id="vizModelConfusion" title="Select a classification model to analyze"></select>
+                                                <small class="text-muted">Classification models only</small>
+                                                <div class="control-description mt-2">Shows how many predictions were correct/incorrect for each category. Diagonal = correct predictions.</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizConfusionBtn" title="Generate confusion matrix to see prediction accuracy by category">
+                                                <i class="fas fa-table me-1"></i>Generate Confusion Matrix
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ROC Curve -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-chart-area me-2"></i>ROC Curve
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Model</label>
+                                                <select class="form-select" id="vizModelROC" title="Select a classification model to evaluate"></select>
+                                                <small class="text-muted">Classification models only</small>
+                                                <div class="control-description mt-2">ROC curve shows model's ability to distinguish between classes. Area under curve (AUC) near 1.0 = excellent, 0.5 = random guessing.</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizROCBtn" title="Generate ROC curve to evaluate classification performance">
+                                                <i class="fas fa-chart-area me-1"></i>Generate ROC Curve
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Feature Importance -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-sort-amount-down me-2"></i>Feature Importance
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Model</label>
+                                                <select class="form-select" id="vizModelImportance" title="Select a tree-based model to see its feature importance"></select>
+                                                <small class="text-muted">Tree-based and ensemble models only</small>
+                                                <div class="control-description mt-2">Shows which features the model relies on most. Higher = more important for predictions.</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Top N Features</label>
+                                                <input type="number" class="form-control" id="vizImportanceTopN" value="20" min="5" max="50" title="Number of top features to display">
+                                                <div class="control-description">Limit to top N most important features for clarity (default: 20)</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizImportanceBtn" title="Show which features matter most for predictions">
+                                                <i class="fas fa-sort-amount-down me-1"></i>Show Feature Importance
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Residual Plot -->
+                                <div class="col-lg-6">
+                                    <div class="card glass-card">
+                                        <div class="card-header">
+                                            <i class="fas fa-project-diagram me-2"></i>Residual Plot
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Model</label>
+                                                <select class="form-select" id="vizModelResidual" title="Select a regression model to analyze its errors"></select>
+                                                <small class="text-muted">Regression models only</small>
+                                                <div class="control-description mt-2">Shows prediction errors. Points should be randomly scattered around zero. Patterns indicate model issues.</div>
+                                            </div>
+                                            <button class="btn btn-primary w-100" id="vizResidualBtn" title="Generate residual plot to check prediction error patterns">
+                                                <i class="fas fa-project-diagram me-1"></i>Generate Residual Plot
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visualization Display Area -->
+                    <div class="card glass-card mt-4" id="vizDisplayCard" style="display:none">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span id="vizDisplayTitle">Visualization</span>
+                            <div>
+                                <button class="btn btn-sm btn-outline-light" id="vizToggleInteractive" title="Toggle between interactive (zoom, pan, hover) and static image view">
+                                    <i class="fas fa-exchange-alt"></i> Interactive
+                                </button>
+                                <button class="btn btn-sm btn-outline-light ms-2" id="vizDownloadBtn" title="Download this visualization as an image">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="vizPlotlyDiv" style="display:block"></div>
+                            <div id="vizStaticDiv" style="display:none; text-align:center; padding:20px;"></div>
+                            <div id="vizStats" class="p-3" style="display:none"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ TUNING ══════════ -->
+                <section class="content-section" id="sec-tuning">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-sliders-h me-2"></i>Hyperparameter Tuning</h6>
+                        <button class="help-toggle-btn" data-help="tuning-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="tuning-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Hyperparameter Tuning</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Tuning fine-tunes your model's settings (hyperparameters) to get the best possible performance.</p>
+                            <p><strong>Simple analogy:</strong> Like adjusting the temperature, time, and settings on an oven to bake the perfect cake. The recipe (model) is the same, but the settings matter!</p>
+                            <p><strong>What are hyperparameters?</strong> Configuration settings that control how the model learns. Examples: learning rate, tree depth, number of neurons.</p>
+                            <p><strong>Tuning methods:</strong></p>
+                            <ul>
+                                <li><strong>Random Search:</strong> Tries random combinations of settings. Fast, good enough for most cases.</li>
+                                <li><strong>Grid Search:</strong> Systematically tries all combinations. Thorough but slow.</li>
+                                <li><strong>Optuna (Bayesian):</strong> Smart search that learns from previous tries. Most efficient, recommended for complex models.</li>
+                            </ul>
+                            <p><strong>When to use:</strong> After initial training, to squeeze out extra performance. Can improve accuracy by 2-10%.</p>
+                            <p><strong>Tip:</strong> Start with 20-50 iterations. More iterations = better results but takes longer.</p>
+                        </div>
+                    </div>
+                    <h6 class="mb-4">Hyperparameter Tuning</h6>
+                    <div class="row g-4">
+                        <div class="col-lg-5">
+                            <div class="card glass-card">
+                                <div class="card-header">Tuning Configuration</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Model</label>
+                                        <select class="form-select" id="tuneModelSelect" title="Select a trained model to tune">
+                                            <option value="">— Select model —</option>
+                                        </select>
+                                        <div class="control-description">Choose a model from your training results. The best performing models benefit most from tuning.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Method</label>
+                                        <select class="form-select" id="tuneMethod" title="Choose the hyperparameter search strategy">
+                                            <option value="random_search">Random Search</option>
+                                            <option value="grid_search">Grid Search</option>
+                                            <option value="optuna">Optuna (Bayesian)</option>
+                                        </select>
+                                        <div class="control-description">Random = fast & good enough. Grid = exhaustive but slow. Optuna = smartest, learns from each trial.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Iterations / Trials</label>
+                                        <input type="number" class="form-control" id="tuneIter" value="20" min="5" max="200" title="Number of different hyperparameter combinations to try">
+                                        <div class="control-description">Number of combinations to try. More = better results but takes longer. 20-50 is usually sufficient.</div>
+                                    </div>
+                                    <button class="btn btn-success w-100" id="tuneBtn" title="Start hyperparameter tuning process (may take several minutes)"><i class="fas fa-sliders-h me-1"></i>Start Tuning</button>
+                                    <div class="control-description mt-2">Tuning can take 5-30 minutes. You'll get optimized hyperparameters and improved performance metrics.</div>
+                                    <button class="btn btn-outline-info w-100 mt-2" id="aiTuneBtn" title="Get AI recommendations for tuning strategy and parameter ranges"><i class="fas fa-robot me-1"></i>AI Tuning Suggestions</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-7">
+                            <div class="card glass-card" id="tuningResultsCard" style="display:none">
+                                <div class="card-header">Tuning Results</div>
+                                <div class="card-body" id="tuningResultsBody"></div>
+                            </div>
+                            <div id="tuningChart" class="mt-3"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ EXPERIMENTS ══════════ -->
+                <section class="content-section" id="sec-experiments">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-flask me-2"></i>Experiment Tracking</h6>
+                        <button class="help-toggle-btn" data-help="experiments-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="experiments-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding Experiment Tracking</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> This keeps a history of all your different attempts (experiments) so you can compare them and find what works best.</p>
+                            <p><strong>Why track experiments?</strong> Machine learning is iterative - you try different approaches. Tracking helps you:</p>
+                            <ul>
+                                <li>Remember what you tried before</li>
+                                <li>Compare different models and settings side-by-side</li>
+                                <li>Identify what changes improved performance</li>
+                                <li>Reproduce your best results</li>
+                            </ul>
+                            <p><strong>What gets tracked:</strong></p>
+                            <ul>
+                                <li>Model type and parameters</li>
+                                <li>Performance metrics (accuracy, F1, etc.)</li>
+                                <li>Data preprocessing steps used</li>
+                                <li>Date and time of experiment</li>
+                                <li>Your custom notes</li>
+                            </ul>
+                            <p><strong>How to use:</strong> After training and evaluating models, save successful experiments here. Use "Compare" to see them side-by-side.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h6 class="mb-0">Experiment Tracking</h6>
+                        <div>
+                            <button class="btn btn-primary btn-sm" id="refreshExpBtn" title="Refresh the experiments list to see latest saved experiments"><i class="fas fa-sync me-1"></i>Refresh</button>
+                            <button class="btn btn-outline-info btn-sm ms-2" id="compareExpBtn" title="Compare selected experiments side-by-side to see which performed best"><i class="fas fa-balance-scale me-1"></i>Compare Selected</button>
+                        </div>
+                    </div>
+                    <div class="alert alert-info" style="font-size: 0.85rem;">
+                        <i class="fas fa-lightbulb me-2"></i><strong>Tip:</strong> Save experiments after training to track what you've tried. Use Compare to see differences in models, parameters, and performance. Great for finding your best approach!
+                    </div>
+                    <div id="experimentsTable">
+                        <div class="text-center text-muted py-5"><i class="fas fa-flask fa-3x mb-3 d-block"></i>No experiments yet. Train and save results.</div>
+                    </div>
+                    <div id="comparisonResults" class="mt-4"></div>
+                </section>
+
+                <!-- ══════════ AI INSIGHTS ══════════ -->
+                <section class="content-section" id="sec-ai">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-robot me-2"></i>AI-Powered Insights</h6>
+                        <button class="help-toggle-btn" data-help="ai-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="ai-help">
+                        <div class="help-panel-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Understanding AI Insights</span>
+                        </div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Your AI assistant that analyzes your data and provides expert recommendations in plain English.</p>
+                            <p><strong>What can it do?</strong></p>
+                            <ul>
+                                <li><strong>Data Quality Analysis:</strong> Examines your dataset and points out issues, patterns, and anomalies</li>
+                                <li><strong>Cleaning Suggestions:</strong> Recommends specific steps to fix data problems based on your dataset's characteristics</li>
+                                <li><strong>Feature Recommendations:</strong> Suggests new features to create that could improve predictions</li>
+                                <li><strong>Model Selection:</strong> Recommends which algorithms to try based on your data and task</li>
+                                <li><strong>Results Interpretation:</strong> Explains what your metrics mean and whether they're good</li>
+                            </ul>
+                            <p><strong>How to use:</strong> Click Quick Actions for common tasks, or ask custom questions about anything in your ML workflow.</p>
+                            <p><strong>Example questions:</strong> "Why is my accuracy low?", "What features should I create?", "Which model performed best and why?", "How do I fix these outliers?"</p>
+                            <p><strong>Tip:</strong> The AI has context about your entire pipeline - it knows your data, models, and results!</p>
+                        </div>
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-lg-5">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-robot me-2"></i>Ask AI</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Quick Actions</label>
+                                        <button class="btn btn-outline-primary btn-sm w-100 mb-2 ai-quick" data-action="quality" title="Get AI analysis of data quality issues and recommendations">Analyze Data Quality</button>
+                                        <div class="control-description">Get a detailed analysis of missing values, outliers, and data quality issues</div>
+                                        <button class="btn btn-outline-primary btn-sm w-100 mb-2 ai-quick" data-action="cleaning" title="Get specific cleaning recommendations based on your data">Suggest Cleaning Steps</button>
+                                        <div class="control-description">Receive step-by-step cleaning recommendations tailored to your dataset</div>
+                                        <button class="btn btn-outline-primary btn-sm w-100 mb-2 ai-quick" data-action="features" title="Get suggestions for new features to engineer">Suggest Features</button>
+                                        <div class="control-description">Discover new features that could improve prediction accuracy</div>
+                                    </div>
+                                    <hr>
+                                    <div class="mb-3">
+                                        <label class="form-label">Custom Question</label>
+                                        <textarea class="form-control" id="aiQuestion" rows="3" placeholder="Ask anything about your data or ML pipeline..."></textarea>
+                                        <div class="control-description"><i class="fas fa-lightbulb"></i>Ask about data quality, feature engineering, model selection, results interpretation, or any ML concept.</div>
+                                    </div>
+                                    <button class="btn btn-primary w-100" id="aiAskBtn" title="Submit your question to the AI assistant"><i class="fas fa-paper-plane me-1"></i>Ask AI</button>
+                                    <div class="control-description">The AI will provide expert guidance based on your current dataset and pipeline state.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-7">
+                            <div class="card glass-card">
+                                <div class="card-header">
+                                    <i class="fas fa-comment-dots me-2"></i>AI Response
+                                </div>
+                                <div class="card-body" id="aiResponseArea">
+                                    <div class="text-center text-muted py-4">
+                                        <i class="fas fa-robot fa-3x mb-3 d-block"></i>
+                                        <p><strong>AI responses will appear here</strong></p>
+                                        <p class="small">The AI assistant analyzes your data and provides contextual recommendations to help you make better decisions throughout your ML workflow.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ═══════════════════ CHAT ASSISTANT DRAWER ═══════════════════ -->
+    <!-- Floating Action Button -->
+    <button class="chat-fab" id="chatFab" title="Open AI Chat Assistant - Get real-time help and guidance throughout your ML workflow">
+        <i class="fas fa-comments"></i>
+        <span class="chat-fab-badge" id="chatFabBadge" style="display:none"></span>
+    </button>
+
+    <!-- Chat Drawer -->
+    <div class="chat-drawer" id="chatDrawer">
+        <div class="chat-drawer-header">
+            <div class="chat-drawer-title">
+                <i class="fas fa-robot me-2"></i>AI Chat Assistant
+                <small class="d-block" style="font-size: 0.7rem; font-weight: normal; opacity: 0.8;">Your ML workflow companion</small>
+            </div>
+            <div class="chat-drawer-actions">
+                <button class="btn btn-sm btn-outline-secondary" id="chatContextToggle" title="Toggle context options - Control what information the AI knows about your current session">
+                    <i class="fas fa-sliders-h"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" id="chatClearBtn" title="Clear chat history - Start a fresh conversation while keeping your session data">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="chatCloseBtn" title="Close chat drawer - Click the chat bubble to reopen anytime">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Context Controls (collapsible) -->
+        <div class="chat-context-panel" id="chatContextPanel" style="display:none">
+            <div class="chat-context-label">Include context with messages:</div>
+            <small class="text-muted d-block mb-2">Select what information to share with the AI for more relevant responses</small>
+            <div class="chat-context-toggles">
+                <label class="chat-toggle" title="Attach recent pipeline log messages">
+                    <input type="checkbox" id="ctxLogs" checked>
+                    <span><i class="fas fa-scroll me-1"></i>Logs</span>
+                </label>
+                <label class="chat-toggle" title="Attach dataset summary (rows, columns, types)">
+                    <input type="checkbox" id="ctxData" checked>
+                    <span><i class="fas fa-table me-1"></i>Data Summary</span>
+                </label>
+                <label class="chat-toggle" title="Attach trained models & tuning info">
+                    <input type="checkbox" id="ctxTuning">
+                    <span><i class="fas fa-sliders-h me-1"></i>Tuning</span>
+                </label>
+                <label class="chat-toggle" title="Attach last evaluation results">
+                    <input type="checkbox" id="ctxEval">
+                    <span><i class="fas fa-chart-bar me-1"></i>Evaluation</span>
+                </label>
+            </div>
+            <div class="mt-2">
+                <label class="form-label small mb-1">Your own notes / context (optional):</label>
+                <textarea class="form-control form-control-sm" id="ctxUserNotes" rows="2"
+                    placeholder="e.g. 'We are predicting churn for a telecom company, data is from Jan-Dec 2025'"></textarea>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-welcome">
+                <i class="fas fa-robot chat-welcome-icon"></i>
+                <h6>Welcome to AceML Assistant! 👋</h6>
+                <p>I'm your AI companion for the entire machine learning journey. I can:</p>
+                <ul style="text-align: left; font-size: 0.85rem; margin: 12px 0;">
+                    <li>Explain ML concepts in plain language</li>
+                    <li>Analyze your data and suggest next steps</li>
+                    <li>Interpret model results and metrics</li>
+                    <li>Troubleshoot issues in your pipeline</li>
+                    <li>Recommend best practices and optimizations</li>
+                </ul>
+                <p class="small"><strong>Try the suggestions below or ask me anything!</strong></p>
+                <div class="chat-suggestions">
+                    <button class="chat-suggest-btn" data-msg="What should I do first after uploading my dataset?">
+                        <i class="fas fa-lightbulb me-1"></i>Getting started
+                    </button>
+                    <button class="chat-suggest-btn" data-msg="Explain my data quality issues in simple terms and what I should fix first.">
+                        <i class="fas fa-search me-1"></i>Explain data quality
+                    </button>
+                    <button class="chat-suggest-btn" data-msg="Which models should I try for my dataset and why?">
+                        <i class="fas fa-brain me-1"></i>Model recommendations
+                    </button>
+                    <button class="chat-suggest-btn" data-msg="What do my evaluation results mean? Am I on the right track?">
+                        <i class="fas fa-chart-bar me-1"></i>Explain results
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="chat-input-area">
+            <div class="chat-input-row">
+                <textarea class="form-control" id="chatInput" rows="1"
+                    placeholder="Ask anything about your ML pipeline…"
+                    maxlength="2000"
+                    title="Type your question here - the AI has full context of your dataset, models, and pipeline"></textarea>
+                <button class="btn btn-primary chat-send-btn" id="chatSendBtn" title="Send message - The AI will analyze your question with full pipeline context">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="chat-input-hint">
+                <small class="text-muted">Press Enter to send, Shift+Enter for new line</small>
+            </div>
+        </div>
+    </div>
+    <!-- Chat backdrop for mobile -->
+    <div class="chat-backdrop" id="chatBackdrop"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display:none">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-3" id="loadingText">Processing…</p>
+    </div>
+
+    <!-- Progress Overlay -->
+    <div class="progress-overlay" id="progressOverlay" style="display:none">
+        <div class="progress-container">
+            <div class="progress-header">
+                <i class="fas fa-cog fa-spin progress-icon"></i>
+                <h5 id="progressTitle">Processing</h5>
+            </div>
+            <div class="progress-bar-wrapper">
+                <div class="progress" style="height: 28px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="progressBar" 
+                         role="progressbar" 
+                         style="width:0%"
+                         aria-valuenow="0" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        <span id="progressPercent">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="progress-info">
+                <div id="progressMessage" class="progress-message">Starting...</div>
+                <div id="progressSteps" class="progress-steps"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="appToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastBody"></div>
+        </div>
+    </div>
+
+    <!-- Save Experiment Modal -->
+    <div class="modal fade" id="saveExpModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-flask me-2"></i>Save Experiment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close without saving"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3"><i class="fas fa-info-circle me-1"></i>Save this experiment to track your progress and compare different approaches later.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Experiment Name</label>
+                        <input type="text" class="form-control" id="expName" placeholder="e.g. XGBoost with feature engineering">
+                        <small class="text-muted">Give it a descriptive name to remember what you tried</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="expNotes" rows="2" placeholder="e.g. Used log transform on price, removed outliers, accuracy improved by 5%"></textarea>
+                        <small class="text-muted">Document what worked, what didn't, and any insights</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" title="Close without saving this experiment">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmSaveExp" title="Save this experiment for future reference and comparison"><i class="fas fa-save me-1"></i>Save Experiment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- App JS -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

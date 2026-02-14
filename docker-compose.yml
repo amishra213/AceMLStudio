@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  aceml-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aceml-studio:latest
+    container_name: aceml-studio
+    ports:
+      - "5000:5000"
+    environment:
+      # Application Settings
+      - SECRET_KEY=${SECRET_KEY:-aceml-studio-change-in-production}
+      - DEBUG=${DEBUG:-False}
+      
+      # LLM Provider Selection
+      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
+      
+      # OpenAI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4}
+      - OPENAI_MAX_TOKENS=${OPENAI_MAX_TOKENS:-2048}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE:-0.3}
+      
+      # Azure OpenAI Configuration
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+      - AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY:-}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}
+      
+      # Anthropic Configuration
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-sonnet-20240229}
+      
+      # DeepSeek Configuration
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MAX_TOKENS=${DEEPSEEK_MAX_TOKENS:-2048}
+      - DEEPSEEK_TEMPERATURE=${DEEPSEEK_TEMPERATURE:-0.3}
+      
+      # File Upload Configuration
+      - MAX_FILE_UPLOAD_SIZE_MB=${MAX_FILE_UPLOAD_SIZE_MB:-256}
+      - CHUNK_SIZE_MB=${CHUNK_SIZE_MB:-5}
+      - LARGE_FILE_THRESHOLD_MB=${LARGE_FILE_THRESHOLD_MB:-50}
+      - USE_DB_FOR_LARGE_FILES=${USE_DB_FOR_LARGE_FILES:-True}
+      - DB_FALLBACK_THRESHOLD_MB=${DB_FALLBACK_THRESHOLD_MB:-500}
+      
+      # Cloud GPU Configuration
+      - CLOUD_GPU_ENABLED=${CLOUD_GPU_ENABLED:-False}
+      - CLOUD_GPU_PROVIDER=${CLOUD_GPU_PROVIDER:-aws_sagemaker}
+      
+      # AWS SageMaker
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SAGEMAKER_ROLE_ARN=${AWS_SAGEMAKER_ROLE_ARN:-}
+      - AWS_SAGEMAKER_INSTANCE_TYPE=${AWS_SAGEMAKER_INSTANCE_TYPE:-ml.p3.2xlarge}
+      - AWS_SAGEMAKER_S3_BUCKET=${AWS_SAGEMAKER_S3_BUCKET:-}
+      
+      # Azure ML
+      - AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID:-}
+      - AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP:-}
+      - AZURE_WORKSPACE_NAME=${AZURE_WORKSPACE_NAME:-}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - AZURE_COMPUTE_TARGET=${AZURE_COMPUTE_TARGET:-gpu-cluster}
+      - AZURE_VM_SIZE=${AZURE_VM_SIZE:-Standard_NC6}
+      
+      # GCP Vertex AI
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - GCP_REGION=${GCP_REGION:-us-central1}
+      - GCP_SERVICE_ACCOUNT_KEY_PATH=${GCP_SERVICE_ACCOUNT_KEY_PATH:-}
+      - GCP_MACHINE_TYPE=${GCP_MACHINE_TYPE:-n1-standard-4}
+      - GCP_ACCELERATOR_TYPE=${GCP_ACCELERATOR_TYPE:-NVIDIA_TESLA_T4}
+      - GCP_ACCELERATOR_COUNT=${GCP_ACCELERATOR_COUNT:-1}
+      
+      # Custom GPU Server
+      - CUSTOM_GPU_ENDPOINT=${CUSTOM_GPU_ENDPOINT:-}
+      - CUSTOM_GPU_API_KEY=${CUSTOM_GPU_API_KEY:-}
+      - CUSTOM_GPU_AUTH_TOKEN=${CUSTOM_GPU_AUTH_TOKEN:-}
+      - CUSTOM_GPU_USERNAME=${CUSTOM_GPU_USERNAME:-}
+      - CUSTOM_GPU_PASSWORD=${CUSTOM_GPU_PASSWORD:-}
+      
+      # GPU Training Options
+      - GPU_JOB_TIMEOUT=${GPU_JOB_TIMEOUT:-3600}
+      - GPU_FALLBACK_TO_LOCAL=${GPU_FALLBACK_TO_LOCAL:-True}
+      - GPU_MAX_RETRIES=${GPU_MAX_RETRIES:-3}
+    
+    volumes:
+      # Persistent data volumes
+      - aceml_uploads:/app/uploads
+      - aceml_experiments:/app/experiments
+      - aceml_logs:/app/logs
+      - aceml_data:/app/Data
+      
+      # Optional: Mount config file (comment out to use environment variables)
+      # - ./config.properties:/app/config.properties:ro
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    networks:
+      - aceml-network
+
+volumes:
+  aceml_uploads:
+    driver: local
+  aceml_experiments:
+    driver: local
+  aceml_logs:
+    driver: local
+  aceml_data:
+    driver: local
+
+networks:
+  aceml-network:
+    driver: bridge
