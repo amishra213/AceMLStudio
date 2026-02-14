@@ -90,6 +90,10 @@
                     <span class="badge bg-secondary" id="datasetBadge" style="display:none" title="Currently loaded dataset">
                         <i class="fas fa-database me-1"></i><span id="datasetName"></span>
                     </span>
+                    <button class="btn btn-sm btn-outline-primary" id="chatTopBarBtn" title="Open AI Chat Assistant - Get real-time help and guidance throughout your ML workflow">
+                        <i class="fas fa-comments"></i>
+                        <span class="chat-icon-badge" id="chatTopBarBadge" style="display:none"></span>
+                    </button>
                     <button class="btn btn-sm btn-outline-danger" id="resetBtn" title="Reset entire session - clears data, models, and returns to fresh start">
                         <i class="fas fa-redo"></i> Reset
                     </button>
@@ -361,7 +365,7 @@
                         <i class="fas fa-exclamation-triangle me-2"></i><strong>Important:</strong> Cleaning operations modify your data. Run data quality analysis first to understand what needs cleaning.
                     </div>
                     <div class="row g-4">
-                        <div class="col-lg-6">
+                        <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header">Missing Values</div>
                                 <div class="card-body">
@@ -386,7 +390,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-lg-6">
+                        <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header">Duplicates & Outliers</div>
                                 <div class="card-body">
@@ -399,9 +403,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="row g-4 mt-2">
-                        <div class="col-lg-6">
+                        <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header">Drop Columns</div>
                                 <div class="card-body">
@@ -526,7 +528,7 @@
                     </div>
                     <h6 class="mb-4">Data Transformations</h6>
                     <div class="row g-4">
-                        <div class="col-lg-6">
+                        <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header">Scaling</div>
                                 <div class="card-body">
@@ -548,7 +550,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-lg-6">
+                        <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header">Encoding</div>
                                 <div class="card-body">
@@ -570,7 +572,8 @@
                                     <button class="btn btn-primary w-100" id="applyEncodeBtn" title="Apply encoding transformation to selected columns"><i class="fas fa-code me-1"></i>Apply Encoding</button>
                                 </div>
                             </div>
-                        <div class="col-lg-6">
+                        </div>
+                        <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header">Data Type Conversion</div>
                                 <div class="card-body">
@@ -594,7 +597,6 @@
                                     <button class="btn btn-primary w-100" id="applyConvertBtn" title="Apply data type conversion to selected columns"><i class="fas fa-exchange-alt me-1"></i>Apply Conversion</button>
                                 </div>
                             </div>
-                        </div>
                         </div>
                     </div>
                     <div class="card glass-card mt-4" id="transformLog" style="display:none">

@@ -16,6 +16,31 @@ from config import Config
 logger = logging.getLogger("aceml.data_loader")
 
 
+def _sanitize_for_json(value):
+    """
+    Convert pandas/numpy types to JSON-serializable Python types.
+    Handles pd.NA, np.nan, pd.NaT, and other special types.
+    """
+    if value is None:
+        return None
+    if pd.isna(value):  # Catches pd.NA, np.nan, pd.NaT, None
+        return None
+    if isinstance(value, (np.integer, np.int64, np.int32)):
+        return int(value)
+    if isinstance(value, (np.floating, np.float64, np.float32)):
+        if np.isnan(value) or np.isinf(value):
+            return None
+        return float(value)
+    if isinstance(value, (np.bool_, bool)):
+        return bool(value)
+    if isinstance(value, (pd.Timestamp, np.datetime64)):
+        return str(value)
+    if isinstance(value, str):
+        return value
+    # For any other types, convert to string
+    return str(value)
+
+
 class DataLoader:
     """Handles loading, previewing, and basic info for uploaded datasets."""
 
@@ -176,14 +201,16 @@ class DataLoader:
     def get_preview(df: pd.DataFrame, n: int = 20) -> dict:
         """Return head rows as dict for JSON serialization."""
         preview_df = df.head(n).copy()
-        # Convert all values to JSON-safe types
-        for col in preview_df.columns:
-            if preview_df[col].dtype == "datetime64[ns]":
-                preview_df[col] = preview_df[col].astype(str)
-            preview_df[col] = preview_df[col].where(preview_df[col].notna(), None)  # type: ignore
+        
+        # Convert to JSON-safe format
+        safe_data = []
+        for _, row in preview_df.iterrows():
+            safe_row = [_sanitize_for_json(val) for val in row]
+            safe_data.append(safe_row)
+        
         return {
             "columns": preview_df.columns.tolist(),
-            "data": preview_df.values.tolist(),
+            "data": safe_data,
             "dtypes": {col: str(dtype) for col, dtype in preview_df.dtypes.items()},
         }
 
@@ -196,10 +223,10 @@ class DataLoader:
         for col, stats in desc.items():
             clean[col] = {}
             for stat, val in stats.items():
-                if isinstance(val, (np.integer,)):
-                    clean[col][stat] = int(val)
-                elif isinstance(val, (np.floating,)):
-                    clean[col][stat] = round(float(val), 4)
+                # Use sanitization function for consistent handling
+                sanitized = _sanitize_for_json(val)
+                if sanitized is not None and isinstance(sanitized, float):
+                    clean[col][stat] = round(sanitized, 4)
                 else:
-                    clean[col][stat] = str(val) if val != "" else None
+                    clean[col][stat] = sanitized if sanitized != "" else None
         return clean

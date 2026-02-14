@@ -12,9 +12,11 @@ import time
 import shutil
 import gc
 import traceback
+import json
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify, render_template, session
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 
 from logging_config import setup_logging, get_logger, get_recent_logs
@@ -39,12 +41,39 @@ from llm_engine.analyzer import LLMAnalyzer
 
 logger = get_logger("app")
 
+
+# ────────────────────────────────────────────────────────────────────
+#  Custom JSON Provider for Pandas/Numpy Types
+# ────────────────────────────────────────────────────────────────────
+class PandasJSONProvider(DefaultJSONProvider):
+    """Custom JSON provider that handles pandas and numpy types."""
+    
+    def default(self, obj):
+        """Convert pandas/numpy types to JSON-serializable types."""
+        if pd.isna(obj):  # Handles pd.NA, np.nan, pd.NaT, None
+            return None
+        if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+            if np.isnan(obj) or np.isinf(obj):
+                return None
+            return float(obj)
+        if isinstance(obj, (np.bool_, bool)):
+            return bool(obj)
+        if isinstance(obj, (pd.Timestamp, np.datetime64)):
+            return str(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
 # ────────────────────────────────────────────────────────────────────
 #  App Init
 # ────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
+app.json = PandasJSONProvider(app)  # Use custom JSON provider
 CORS(app)
 
 os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
@@ -540,6 +569,40 @@ def _load_and_store(filepath: str, original_filename: str) -> dict:
 # ────────────────────────────────────────────────────────────────────
 #  Data Preview & Info
 # ────────────────────────────────────────────────────────────────────
+@app.route("/api/session/check")
+def session_check():
+    """Check if there's an active session with loaded data."""
+    df = _df()
+    store = _store()
+    
+    if df is None:
+        return _ok({
+            "has_data": False,
+            "session_id": _sid()
+        })
+    
+    # Session has data - return info to restore UI state
+    try:
+        info = DataLoader.get_info(df)
+        preview = DataLoader.get_preview(df, 20)
+        filename = store.get("filename", "Dataset")
+        
+        return _ok({
+            "has_data": True,
+            "session_id": _sid(),
+            "info": info,
+            "preview": preview,
+            "filename": filename
+        })
+    except Exception as e:
+        logger.error("Failed to get session info: %s", e, exc_info=True)
+        return _ok({
+            "has_data": True,
+            "session_id": _sid(),
+            "error": str(e)
+        })
+
+
 @app.route("/api/data/preview")
 def data_preview():
     df = _df()

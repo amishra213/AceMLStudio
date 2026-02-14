@@ -170,6 +170,26 @@ body {
     gap: 12px;
 }
 
+#chatTopBarBtn {
+    position: relative;
+}
+
+.chat-icon-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--danger);
+    font-size: 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #fff;
+}
+
 .content-area {
     flex: 1;
     padding: 24px;
@@ -771,7 +791,7 @@ body {
 /* ── Floating Action Button ── */
 .chat-fab {
     position: fixed;
-    bottom: 28px;
+    top: 28px;
     right: 28px;
     width: 56px;
     height: 56px;
@@ -784,7 +804,7 @@ body {
     box-shadow: 0 4px 20px rgba(99, 102, 241, 0.45);
     z-index: 1100;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    display: flex;
+    display: none; /* Hidden - using top bar icon instead */
     align-items: center;
     justify-content: center;
 }

@@ -510,6 +510,10 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Marked.js for markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- App JS (for chat functionality) -->
+    <script src="/static/js/app.js"></script>
     
     <script>
         // Show alert message
@@ -645,5 +649,109 @@
         // Load settings on page load
         document.addEventListener('DOMContentLoaded', loadSettings);
     </script>
+
+    <!-- ═══════════════════ CHAT ASSISTANT DRAWER ═══════════════════ -->
+    <!-- Floating Action Button -->
+    <button class="chat-fab" id="chatFab" title="Open AI Chat Assistant - Get help with settings and configuration">
+        <i class="fas fa-comments"></i>
+        <span class="chat-fab-badge" id="chatFabBadge" style="display:none"></span>
+    </button>
+
+    <!-- Chat Drawer -->
+    <div class="chat-drawer" id="chatDrawer">
+        <div class="chat-drawer-header">
+            <div class="chat-drawer-title">
+                <i class="fas fa-robot me-2"></i>AI Chat Assistant
+                <small class="d-block" style="font-size: 0.7rem; font-weight: normal; opacity: 0.8;">Your ML workflow companion</small>
+            </div>
+            <div class="chat-drawer-actions">
+                <button class="btn btn-sm btn-outline-secondary" id="chatContextToggle" title="Toggle context options">
+                    <i class="fas fa-sliders-h"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" id="chatClearBtn" title="Clear chat history">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="chatCloseBtn" title="Close chat drawer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Context Controls (collapsible) -->
+        <div class="chat-context-panel" id="chatContextPanel" style="display:none">
+            <div class="chat-context-label">Include context with messages:</div>
+            <small class="text-muted d-block mb-2">Select what information to share with the AI for more relevant responses</small>
+            <div class="chat-context-toggles">
+                <label class="chat-toggle" title="Attach recent pipeline log messages">
+                    <input type="checkbox" id="ctxLogs" checked>
+                    <span><i class="fas fa-scroll me-1"></i>Logs</span>
+                </label>
+                <label class="chat-toggle" title="Attach dataset summary">
+                    <input type="checkbox" id="ctxData" checked>
+                    <span><i class="fas fa-table me-1"></i>Data Summary</span>
+                </label>
+                <label class="chat-toggle" title="Attach trained models & tuning info">
+                    <input type="checkbox" id="ctxTuning">
+                    <span><i class="fas fa-sliders-h me-1"></i>Tuning</span>
+                </label>
+                <label class="chat-toggle" title="Attach last evaluation results">
+                    <input type="checkbox" id="ctxEval">
+                    <span><i class="fas fa-chart-bar me-1"></i>Evaluation</span>
+                </label>
+            </div>
+            <div class="mt-2">
+                <label class="form-label small mb-1">Your own notes / context (optional):</label>
+                <textarea class="form-control form-control-sm" id="ctxUserNotes" rows="2"
+                    placeholder="e.g. 'We are predicting churn for a telecom company, data is from Jan-Dec 2025'"></textarea>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-welcome">
+                <i class="fas fa-robot chat-welcome-icon"></i>
+                <h6>Welcome to AceML Assistant! 👋</h6>
+                <p>I'm your AI companion for the entire machine learning journey. I can:</p>
+                <ul style="text-align: left; font-size: 0.85rem; margin: 12px 0;">
+                    <li>Explain ML concepts in plain language</li>
+                    <li>Help with settings and configuration</li>
+                    <li>Analyze your data and suggest next steps</li>
+                    <li>Interpret model results and metrics</li>
+                    <li>Troubleshoot issues in your pipeline</li>
+                </ul>
+                <p class="small"><strong>Try the suggestions below or ask me anything!</strong></p>
+                <div class="chat-suggestions">
+                    <button class="chat-suggest-btn" data-msg="Help me configure LLM settings">
+                        <i class="fas fa-cog me-1"></i>LLM Setup
+                    </button>
+                    <button class="chat-suggest-btn" data-msg="Which LLM provider should I choose?">
+                        <i class="fas fa-question-circle me-1"></i>Provider advice
+                    </button>
+                    <button class="chat-suggest-btn" data-msg="What are the recommended settings for production?">
+                        <i class="fas fa-server me-1"></i>Production settings
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="chat-input-area">
+            <div class="chat-input-row">
+                <textarea class="form-control" id="chatInput" rows="1"
+                    placeholder="Ask anything about settings or ML…"
+                    maxlength="2000"
+                    title="Type your question here"></textarea>
+                <button class="btn btn-primary chat-send-btn" id="chatSendBtn" title="Send message">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="chat-input-hint">
+                <small class="text-muted">Press Enter to send, Shift+Enter for new line</small>
+            </div>
+        </div>
+    </div>
+    <!-- Chat backdrop for mobile -->
+    <div class="chat-backdrop" id="chatBackdrop"></div>
+
 </body>
 </html>

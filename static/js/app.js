@@ -475,6 +475,21 @@ function formatFileSize(bytes) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
 }
 
+// ─── Check for existing session ─────────────────────────
+async function checkSession() {
+    try {
+        const res = await API.get("/api/session/check");
+        if (res.status === "ok" && res.data.has_data) {
+            // Session already has data loaded - restore UI state
+            console.log("Restoring session data:", res.data.filename);
+            onUploadSuccess(res.data);
+        }
+    } catch (err) {
+        console.error("Failed to check session:", err);
+        // Silently fail - user can just upload data
+    }
+}
+
 // ─── Post-upload handler ────────────────────────────────
 function onUploadSuccess(data) {
     State.dataLoaded = true;
@@ -562,27 +577,36 @@ document.getElementById("setTargetBtn").addEventListener("click", async () => {
 document.getElementById("runQualityBtn").addEventListener("click", async () => {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
     
-    showProgress("Analyzing Data Quality", [
-        "Loading dataset...",
-        "Checking missing values...",
-        "Detecting outliers...",
-        "Analyzing distributions...",
-        "Calculating quality score..."
-    ]);
-    
-    // Simulate progress steps
-    setTimeout(() => nextProgressStep(), 300);
-    setTimeout(() => nextProgressStep(), 600);
-    setTimeout(() => nextProgressStep(), 900);
-    setTimeout(() => nextProgressStep(), 1200);
-    
-    const target = document.getElementById("targetSelect").value;
-    const res = await API.post("/api/data/quality", { target });
-    completeProgress();
+    try {
+        showProgress("Analyzing Data Quality", [
+            "Loading dataset...",
+            "Checking missing values...",
+            "Detecting outliers...",
+            "Analyzing distributions...",
+            "Calculating quality score..."
+        ]);
+        
+        // Simulate progress steps
+        setTimeout(() => nextProgressStep(), 300);
+        setTimeout(() => nextProgressStep(), 600);
+        setTimeout(() => nextProgressStep(), 900);
+        setTimeout(() => nextProgressStep(), 1200);
+        
+        const target = document.getElementById("targetSelect").value;
+        const res = await API.post("/api/data/quality", { target });
+        completeProgress();
 
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
-    State.qualityReport = res.data;
-    renderQualityReport(res.data);
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Quality analysis failed", "error"); 
+            return; 
+        }
+        State.qualityReport = res.data;
+        renderQualityReport(res.data);
+    } catch (error) {
+        console.error("Quality analysis error:", error);
+        hideProgress();
+        showToast("Error", "Quality analysis failed: " + error.message, "error");
+    }
 });
 
 function renderQualityReport(report) {
@@ -738,27 +762,36 @@ document.getElementById("dropColumnsBtn").addEventListener("click", async () => 
 async function applyClean(operations) {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
     
-    showProgress("Cleaning Data", [
-        "Preparing cleaning operations...",
-        "Applying data cleaning...",
-        "Validating results...",
-        "Updating dataset..."
-    ]);
-    
-    setTimeout(() => nextProgressStep(), 200);
-    setTimeout(() => nextProgressStep(), 400);
-    setTimeout(() => nextProgressStep(), 600);
-    
-    const res = await API.post("/api/data/clean", { operations });
-    completeProgress();
+    try {
+        showProgress("Cleaning Data", [
+            "Preparing cleaning operations...",
+            "Applying data cleaning...",
+            "Validating results...",
+            "Updating dataset..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 200);
+        setTimeout(() => nextProgressStep(), 400);
+        setTimeout(() => nextProgressStep(), 600);
+        
+        const res = await API.post("/api/data/clean", { operations });
+        completeProgress();
 
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Cleaning failed", "error"); 
+            return; 
+        }
 
-    const { log, info, preview } = res.data;
-    updateDashboardStats(info);
-    showCleaningLog(log);
-    populateColumnSelects();
-    showToast("Done", log.join("; "), "success");
+        const { log, info, preview } = res.data;
+        updateDashboardStats(info);
+        showCleaningLog(log);
+        populateColumnSelects();
+        showToast("Done", log.join("; "), "success");
+    } catch (error) {
+        console.error("Clean error:", error);
+        hideProgress();
+        showToast("Error", "Cleaning failed: " + error.message, "error");
+    }
 }
 
 function showCleaningLog(log) {
@@ -801,27 +834,38 @@ document.getElementById("textLenBtn").addEventListener("click", async () => {
 async function applyFeature(operations) {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
     
-    showProgress("Engineering Features", [
-        "Analyzing existing features...",
-        "Creating new features...",
-        "Validating feature types...",
-        "Updating dataset..."
-    ]);
-    
-    setTimeout(() => nextProgressStep(), 250);
-    setTimeout(() => nextProgressStep(), 500);
-    setTimeout(() => nextProgressStep(), 750);
-    
-    const res = await API.post("/api/data/feature-engineer", { operations });
-    completeProgress();
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
-    const { log, info } = res.data;
-    updateDashboardStats(info);
-    document.getElementById("featureLog").style.display = "block";
-    document.getElementById("featureLogBody").innerHTML = log.map(m =>
-        `<div class="log-entry"><i class="fas fa-plus-circle me-2"></i>${m}</div>`).join("");
-    populateColumnSelects();
-    showToast("Features Added", log.join("; "), "success");
+    try {
+        showProgress("Engineering Features", [
+            "Analyzing existing features...",
+            "Creating new features...",
+            "Validating feature types...",
+            "Updating dataset..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 250);
+        setTimeout(() => nextProgressStep(), 500);
+        setTimeout(() => nextProgressStep(), 750);
+        
+        const res = await API.post("/api/data/feature-engineer", { operations });
+        completeProgress();
+        
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Feature engineering failed", "error"); 
+            return; 
+        }
+        
+        const { log, info } = res.data;
+        updateDashboardStats(info);
+        document.getElementById("featureLog").style.display = "block";
+        document.getElementById("featureLogBody").innerHTML = log.map(m =>
+            `<div class="log-entry"><i class="fas fa-plus-circle me-2"></i>${m}</div>`).join("");
+        populateColumnSelects();
+        showToast("Features Added", log.join("; "), "success");
+    } catch (error) {
+        console.error("Feature engineering error:", error);
+        hideProgress();
+        showToast("Error", "Feature engineering failed: " + error.message, "error");
+    }
 }
 
 // ════════════════════════════════════════════════════════
@@ -855,27 +899,38 @@ document.getElementById("applyConvertBtn").addEventListener("click", async () =>
 async function applyTransform(operations) {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
     
-    showProgress("Transforming Data", [
-        "Preparing transformations...",
-        "Scaling numeric features...",
-        "Encoding categorical features...",
-        "Finalizing transformations..."
-    ]);
-    
-    setTimeout(() => nextProgressStep(), 200);
-    setTimeout(() => nextProgressStep(), 400);
-    setTimeout(() => nextProgressStep(), 600);
-    
-    const res = await API.post("/api/data/transform", { operations });
-    completeProgress();
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
-    const { log, info } = res.data;
-    updateDashboardStats(info);
-    document.getElementById("transformLog").style.display = "block";
-    document.getElementById("transformLogBody").innerHTML = log.map(m =>
-        `<div class="log-entry"><i class="fas fa-sync me-2"></i>${m}</div>`).join("");
-    populateColumnSelects();
-    showToast("Transformed", log.join("; "), "success");
+    try {
+        showProgress("Transforming Data", [
+            "Preparing transformations...",
+            "Scaling numeric features...",
+            "Encoding categorical features...",
+            "Finalizing transformations..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 200);
+        setTimeout(() => nextProgressStep(), 400);
+        setTimeout(() => nextProgressStep(), 600);
+        
+        const res = await API.post("/api/data/transform", { operations });
+        completeProgress();
+        
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Transformation failed", "error"); 
+            return; 
+        }
+        
+        const { log, info } = res.data;
+        updateDashboardStats(info);
+        document.getElementById("transformLog").style.display = "block";
+        document.getElementById("transformLogBody").innerHTML = log.map(m =>
+            `<div class="log-entry"><i class="fas fa-sync me-2"></i>${m}</div>`).join("");
+        populateColumnSelects();
+        showToast("Transformed", log.join("; "), "success");
+    } catch (error) {
+        console.error("Transform error:", error);
+        hideProgress();
+        showToast("Error", "Transformation failed: " + error.message, "error");
+    }
 }
 
 // ════════════════════════════════════════════════════════
@@ -883,71 +938,82 @@ async function applyTransform(operations) {
 // ════════════════════════════════════════════════════════
 document.getElementById("applyReduceBtn").addEventListener("click", async () => {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
-    const method = document.getElementById("reduceMethod").value;
-    let params = {};
-    const compVal = parseFloat(document.getElementById("pcaComponents").value);
-
-    if (method === "pca") {
-        params.n_components = compVal;
-    } else if (method === "feature_importance") {
-        params.target = document.getElementById("targetSelect").value;
-        params.task = document.querySelector('input[name="taskType"]:checked')?.value || "classification";
-    }
-
-    showProgress("Reducing Dimensions", [
-        "Analyzing feature space...",
-        "Computing components...",
-        "Reducing dimensions...",
-        "Validating results..."
-    ]);
     
-    setTimeout(() => nextProgressStep(), 300);
-    setTimeout(() => nextProgressStep(), 600);
-    setTimeout(() => nextProgressStep(), 900);
-    
-    const res = await API.post("/api/data/reduce", { method, params });
-    completeProgress();
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
+    try {
+        const method = document.getElementById("reduceMethod").value;
+        let params = {};
+        const compVal = parseFloat(document.getElementById("pcaComponents").value);
 
-    const { reduction_info, data_info } = res.data;
-    document.getElementById("reduceResultCard").style.display = "block";
-    let html = '<div class="metric-grid">';
-    if (reduction_info.n_components !== undefined) {
-        html += `<div class="metric-card"><div class="metric-value">${reduction_info.n_components}</div><div class="metric-name">Components</div></div>`;
-        html += `<div class="metric-card"><div class="metric-value">${reduction_info.original_features}</div><div class="metric-name">Original</div></div>`;
-        html += `<div class="metric-card"><div class="metric-value">${reduction_info.removed_features}</div><div class="metric-name">Removed</div></div>`;
+        if (method === "pca") {
+            params.n_components = compVal;
+        } else if (method === "feature_importance") {
+            params.target = document.getElementById("targetSelect").value;
+            params.task = document.querySelector('input[name="taskType"]:checked')?.value || "classification";
+        }
+
+        showProgress("Reducing Dimensions", [
+            "Analyzing feature space...",
+            "Computing components...",
+            "Reducing dimensions...",
+            "Validating results..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 300);
+        setTimeout(() => nextProgressStep(), 600);
+        setTimeout(() => nextProgressStep(), 900);
+        
+        const res = await API.post("/api/data/reduce", { method, params });
+            completeProgress();
+        
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Dimensionality reduction failed", "error"); 
+            return; 
+        }
+
+        const { reduction_info, data_info } = res.data;
+        document.getElementById("reduceResultCard").style.display = "block";
+        let html = '<div class="metric-grid">';
+        if (reduction_info.n_components !== undefined) {
+            html += `<div class="metric-card"><div class="metric-value">${reduction_info.n_components}</div><div class="metric-name">Components</div></div>`;
+            html += `<div class="metric-card"><div class="metric-value">${reduction_info.original_features}</div><div class="metric-name">Original</div></div>`;
+            html += `<div class="metric-card"><div class="metric-value">${reduction_info.removed_features}</div><div class="metric-name">Removed</div></div>`;
+        }
+        if (reduction_info.removed) {
+            html += `<div class="metric-card"><div class="metric-value">${reduction_info.removed.length}</div><div class="metric-name">Removed Cols</div></div>`;
+        }
+        html += '</div>';
+
+        if (reduction_info.removed && reduction_info.removed.length > 0) {
+            html += `<div class="mt-3"><small class="text-muted">Removed: ${reduction_info.removed.join(", ")}</small></div>`;
+        }
+
+        document.getElementById("reduceResultBody").innerHTML = html;
+        updateDashboardStats(data_info);
+
+        // Plot variance
+        if (reduction_info.cumulative_variance) {
+            Plotly.newPlot("variancePlot", [{
+                y: reduction_info.cumulative_variance,
+                type: "scatter",
+                mode: "lines+markers",
+                marker: { color: "#6366f1" },
+                line: { color: "#6366f1" },
+            }], {
+                title: { text: "Cumulative Explained Variance", font: { color: "#e2e8f0", size: 14 } },
+                paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+                font: { color: "#94a3b8" },
+                xaxis: { title: "Component" }, yaxis: { title: "Cumulative Variance", range: [0, 1.05] },
+                margin: { t: 40, b: 50, l: 60, r: 20 }, height: 300,
+            }, { responsive: true });
+        }
+
+        populateColumnSelects();
+        showToast("Reduced", `Dimensions reduced using ${method}`, "success");
+    } catch (error) {
+        console.error("Dimensionality reduction error:", error);
+        hideProgress();
+        showToast("Error", "Dimensionality reduction failed: " + error.message, "error");
     }
-    if (reduction_info.removed) {
-        html += `<div class="metric-card"><div class="metric-value">${reduction_info.removed.length}</div><div class="metric-name">Removed Cols</div></div>`;
-    }
-    html += '</div>';
-
-    if (reduction_info.removed && reduction_info.removed.length > 0) {
-        html += `<div class="mt-3"><small class="text-muted">Removed: ${reduction_info.removed.join(", ")}</small></div>`;
-    }
-
-    document.getElementById("reduceResultBody").innerHTML = html;
-    updateDashboardStats(data_info);
-
-    // Plot variance
-    if (reduction_info.cumulative_variance) {
-        Plotly.newPlot("variancePlot", [{
-            y: reduction_info.cumulative_variance,
-            type: "scatter",
-            mode: "lines+markers",
-            marker: { color: "#6366f1" },
-            line: { color: "#6366f1" },
-        }], {
-            title: { text: "Cumulative Explained Variance", font: { color: "#e2e8f0", size: 14 } },
-            paper_bgcolor: "transparent", plot_bgcolor: "transparent",
-            font: { color: "#94a3b8" },
-            xaxis: { title: "Component" }, yaxis: { title: "Cumulative Variance", range: [0, 1.05] },
-            margin: { t: 40, b: 50, l: 60, r: 20 }, height: 300,
-        }, { responsive: true });
-    }
-
-    populateColumnSelects();
-    showToast("Reduced", `Dimensions reduced using ${method}`, "success");
 });
 
 // ════════════════════════════════════════════════════════
@@ -981,23 +1047,27 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
     const testSize = parseFloat(document.getElementById("testSize").value);
     const valSize = parseFloat(document.getElementById("valSize").value);
 
-    showProgress("Training Models", [
-        "Preparing training data...",
-        "Initializing models...",
-        "Training algorithms...",
-        "Evaluating performance...",
-        "Saving results..."
-    ]);
-    
-    setTimeout(() => nextProgressStep(), 400);
-    setTimeout(() => nextProgressStep(), 800);
-    setTimeout(() => nextProgressStep(), 1200);
-    setTimeout(() => nextProgressStep(), 1600);
-    
-    const res = await API.post("/api/model/train", { target, task, models, test_size: testSize, val_size: valSize });
-    completeProgress();
+    try {
+        showProgress("Training Models", [
+            "Preparing training data...",
+            "Initializing models...",
+            "Training algorithms...",
+            "Evaluating performance...",
+            "Saving results..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 400);
+        setTimeout(() => nextProgressStep(), 800);
+        setTimeout(() => nextProgressStep(), 1200);
+        setTimeout(() => nextProgressStep(), 1600);
+        
+        const res = await API.post("/api/model/train", { target, task, models, test_size: testSize, val_size: valSize });
+        completeProgress();
 
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Training failed", "error"); 
+            return; 
+        }
 
     const { results, split_info } = res.data;
     State.trainedModels = results.filter(r => r.status === "success");
@@ -1063,6 +1133,11 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
     });
 
     showToast("Training Complete", `${successModels.length}/${models.length} models trained`, "success");
+    } catch (error) {
+        console.error("Training error:", error);
+        hideProgress();
+        showToast("Error", "Training failed: " + error.message, "error");
+    }
 });
 
 // ════════════════════════════════════════════════════════
@@ -1072,26 +1147,35 @@ document.getElementById("evaluateBtn").addEventListener("click", async () => {
     const modelKey = document.getElementById("evalModelSelect").value;
     const dataset = document.getElementById("evalDataset").value;
 
-    showProgress("Evaluating Model", [
-        "Loading model...",
-        "Preparing test data...",
-        "Making predictions...",
-        "Calculating metrics...",
-        "Generating visualizations..."
-    ]);
-    
-    setTimeout(() => nextProgressStep(), 250);
-    setTimeout(() => nextProgressStep(), 500);
-    setTimeout(() => nextProgressStep(), 750);
-    setTimeout(() => nextProgressStep(), 1000);
-    
-    const res = await API.post("/api/model/evaluate", { model_key: modelKey || undefined, dataset });
-    completeProgress();
+    try {
+        showProgress("Evaluating Model", [
+            "Loading model...",
+            "Preparing test data...",
+            "Making predictions...",
+            "Calculating metrics...",
+            "Generating visualizations..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 250);
+        setTimeout(() => nextProgressStep(), 500);
+        setTimeout(() => nextProgressStep(), 750);
+        setTimeout(() => nextProgressStep(), 1000);
+        
+        const res = await API.post("/api/model/evaluate", { model_key: modelKey || undefined, dataset });
+        completeProgress();
 
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Evaluation failed", "error"); 
+            return; 
+        }
 
-    State.lastEvalResults = res.data;
-    renderEvalResults(res.data);
+        State.lastEvalResults = res.data;
+        renderEvalResults(res.data);
+    } catch (error) {
+        console.error("Evaluation error:", error);
+        hideProgress();
+        showToast("Error", "Evaluation failed: " + error.message, "error");
+    }
 });
 
 function renderEvalResults(data) {
@@ -1207,29 +1291,38 @@ document.getElementById("tuneBtn").addEventListener("click", async () => {
 
     if (!modelKey) { showToast("Warning", "Select a model to tune", "error"); return; }
 
-    showProgress(`Tuning ${modelKey}`, [
-        "Initializing hyperparameter search...",
-        "Defining search space...",
-        "Running optimization...",
-        "Evaluating candidates...",
-        "Finding best parameters..."
-    ]);
-    
-    setTimeout(() => nextProgressStep(), 500);
-    setTimeout(() => nextProgressStep(), 1000);
-    setTimeout(() => nextProgressStep(), 1500);
-    setTimeout(() => nextProgressStep(), 2000);
-    
-    const res = await API.post("/api/model/tune", {
-        model_key: modelKey, method, n_iter: nIter,
-        target: document.getElementById("targetSelect").value,
-        task: document.querySelector('input[name="taskType"]:checked')?.value,
-    });
-    completeProgress();
+    try {
+        showProgress(`Tuning ${modelKey}`, [
+            "Initializing hyperparameter search...",
+            "Defining search space...",
+            "Running optimization...",
+            "Evaluating candidates...",
+            "Finding best parameters..."
+        ]);
+        
+        setTimeout(() => nextProgressStep(), 500);
+        setTimeout(() => nextProgressStep(), 1000);
+        setTimeout(() => nextProgressStep(), 1500);
+        setTimeout(() => nextProgressStep(), 2000);
+        
+        const res = await API.post("/api/model/tune", {
+            model_key: modelKey, method, n_iter: nIter,
+            target: document.getElementById("targetSelect").value,
+            task: document.querySelector('input[name="taskType"]:checked')?.value,
+        });
+        completeProgress();
 
-    if (res.status !== "ok") { showToast("Error", res.message, "error"); return; }
-    State.lastTuningResults = res.data;
-    renderTuningResults(res.data);
+        if (res.status !== "ok") { 
+            showToast("Error", res.message || "Tuning failed", "error"); 
+            return; 
+        }
+        State.lastTuningResults = res.data;
+        renderTuningResults(res.data);
+    } catch (error) {
+        console.error("Tuning error:", error);
+        hideProgress();
+        showToast("Error", "Tuning failed: " + error.message, "error");
+    }
 });
 
 function renderTuningResults(data) {
@@ -1456,10 +1549,12 @@ function toggleChat(forceOpen) {
     if (Chat.open) {
         document.getElementById("chatInput").focus();
         document.getElementById("chatFabBadge").style.display = "none";
+        document.getElementById("chatTopBarBadge").style.display = "none";
     }
 }
 
 document.getElementById("chatFab").addEventListener("click", () => toggleChat());
+document.getElementById("chatTopBarBtn").addEventListener("click", () => toggleChat());
 document.getElementById("chatCloseBtn").addEventListener("click", () => toggleChat(false));
 document.getElementById("chatBackdrop").addEventListener("click", () => toggleChat(false));
 
@@ -1984,6 +2079,7 @@ document.getElementById("vizDownloadBtn")?.addEventListener("click", () => {
 //  INIT
 // ════════════════════════════════════════════════════════
 document.addEventListener("DOMContentLoaded", () => {
+    checkSession();  // Check if session already has data loaded
     loadUploadConfig();  // Load upload configuration from backend
     initUpload();
     loadExperiments();
