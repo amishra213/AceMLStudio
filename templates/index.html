@@ -325,6 +325,12 @@
                     <div id="qualityResults">
                         <div class="text-center text-muted py-5"><i class="fas fa-search fa-3x mb-3 d-block"></i>Click "Run Analysis" to scan your data for quality issues.</div>
                     </div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-info w-100" id="viewCurrentDataBtnQuality" title="View the current state of your data after all transformations and changes">
+                            <i class="fas fa-table me-2"></i>View Current Data State
+                        </button>
+                        <div class="control-description text-center mt-2">Check how your data looks right now with all applied changes</div>
+                    </div>
                 </section>
 
                 <!-- ══════════ DATA CLEANING ══════════ -->
@@ -420,6 +426,12 @@
                     <div class="card glass-card mt-4" id="cleaningLog" style="display:none">
                         <div class="card-header">Cleaning Log</div>
                         <div class="card-body" id="cleaningLogBody"></div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-info w-100" id="viewCurrentDataBtnCleaning" title="View the current state of your data after all transformations and changes">
+                            <i class="fas fa-table me-2"></i>View Current Data State
+                        </button>
+                        <div class="control-description text-center mt-2">Check how your data looks right now with all applied changes</div>
                     </div>
                 </section>
 
@@ -602,6 +614,12 @@
                     <div class="card glass-card mt-4" id="transformLog" style="display:none">
                         <div class="card-header">Transformation Log</div>
                         <div class="card-body" id="transformLogBody"></div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-info w-100" id="viewCurrentDataBtn" title="View the current state of your data after all transformations and changes">
+                            <i class="fas fa-table me-2"></i>View Current Data State
+                        </button>
+                        <div class="control-description text-center mt-2">Check how your data looks right now with all applied changes, including column types and values</div>
                     </div>
                 </section>
 
@@ -1413,6 +1431,78 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" title="Close without saving this experiment">Cancel</button>
                     <button type="button" class="btn btn-primary" id="confirmSaveExp" title="Save this experiment for future reference and comparison"><i class="fas fa-save me-1"></i>Save Experiment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Data State Modal -->
+    <div class="modal fade" id="currentDataModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-table me-2"></i>Current Data State</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close data view"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="currentDataLoading" style="display:none" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3">Loading current data state...</p>
+                    </div>
+                    <div id="currentDataContent">
+                        <!-- Quality Summary -->
+                        <div class="card glass-card mb-3">
+                            <div class="card-header"><i class="fas fa-info-circle me-2"></i>Summary</div>
+                            <div class="card-body">
+                                <div class="row g-3" id="currentDataSummary">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Column Details -->
+                        <div class="card glass-card mb-3">
+                            <div class="card-header"><i class="fas fa-columns me-2"></i>Column Details</div>
+                            <div class="card-body">
+                                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                    <table class="table table-sm table-dark table-striped">
+                                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
+                                            <tr>
+                                                <th>Column</th>
+                                                <th>Data Type</th>
+                                                <th>Non-Null</th>
+                                                <th>Null</th>
+                                                <th>Null %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="currentDataColumns">
+                                            <!-- Will be populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Data Preview -->
+                        <div class="card glass-card">
+                            <div class="card-header"><i class="fas fa-eye me-2"></i>Data Preview (First 20 Rows)</div>
+                            <div class="card-body">
+                                <div class="table-responsive" style="max-height: 400px; overflow: auto;">
+                                    <table class="table table-sm table-dark table-striped">
+                                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;" id="currentDataPreviewHead">
+                                            <!-- Will be populated by JS -->
+                                        </thead>
+                                        <tbody id="currentDataPreviewBody">
+                                            <!-- Will be populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>

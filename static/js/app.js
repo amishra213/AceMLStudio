@@ -249,6 +249,21 @@ function populateColumnSelects() {
         });
         document.getElementById("setTargetBtn").disabled = false;
 
+        // Restore previously set target configuration
+        API.get("/api/config/target").then(configRes => {
+            if (configRes.status === "ok" && configRes.data) {
+                const { target, task } = configRes.data;
+                if (target) {
+                    ts.value = target;
+                    // Restore task type
+                    if (task) {
+                        const taskRadio = document.querySelector(`input[name="taskType"][value="${task}"]`);
+                        if (taskRadio) taskRadio.checked = true;
+                    }
+                }
+            }
+        });
+
         // Cleaning columns
         populateSelect(document.getElementById("missingColumns"), d.columns);
         populateSelect(document.getElementById("dropColumnsSelect"), d.columns);
@@ -932,6 +947,105 @@ async function applyTransform(operations) {
         showToast("Error", "Transformation failed: " + error.message, "error");
     }
 }
+
+// ════════════════════════════════════════════════════════
+//  VIEW CURRENT DATA STATE
+// ════════════════════════════════════════════════════════
+async function viewCurrentDataState() {
+    if (!State.dataLoaded) { 
+        showToast("Warning", "Upload a dataset first", "error"); 
+        return; 
+    }
+    
+    try {
+        const modal = new bootstrap.Modal(document.getElementById("currentDataModal"));
+        modal.show();
+        
+        document.getElementById("currentDataLoading").style.display = "block";
+        document.getElementById("currentDataContent").style.display = "none";
+        
+        const res = await API.get("/api/data/current");
+        
+        document.getElementById("currentDataLoading").style.display = "none";
+        document.getElementById("currentDataContent").style.display = "block";
+        
+        if (res.status !== "ok") {
+            showToast("Error", res.message || "Failed to load current data", "error");
+            return;
+        }
+        
+        const { info, preview, quality_summary, column_details } = res.data;
+        
+        // Populate summary
+        const summaryHtml = `
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value">${quality_summary.total_rows.toLocaleString()}</div>
+                    <div class="metric-name">Total Rows</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value">${quality_summary.total_columns}</div>
+                    <div class="metric-name">Total Columns</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value">${quality_summary.missing_cells.toLocaleString()}</div>
+                    <div class="metric-name">Missing Cells</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value">${quality_summary.missing_percentage.toFixed(2)}%</div>
+                    <div class="metric-name">Missing %</div>
+                </div>
+            </div>
+        `;
+        document.getElementById("currentDataSummary").innerHTML = summaryHtml;
+        
+        // Populate column details
+        const columnsHtml = column_details.map(col => {
+            const nullClass = col.null_pct > 50 ? 'text-danger' : col.null_pct > 20 ? 'text-warning' : '';
+            return `
+                <tr>
+                    <td><strong>${col.name}</strong></td>
+                    <td><code>${col.dtype}</code></td>
+                    <td>${col.non_null.toLocaleString()}</td>
+                    <td class="${nullClass}">${col.null.toLocaleString()}</td>
+                    <td class="${nullClass}">${col.null_pct.toFixed(1)}%</td>
+                </tr>
+            `;
+        }).join("");
+        document.getElementById("currentDataColumns").innerHTML = columnsHtml;
+        
+        // Populate data preview
+        if (preview && preview.columns && preview.data) {
+            const headHtml = `<tr>${preview.columns.map(col => `<th>${col}</th>`).join("")}</tr>`;
+            document.getElementById("currentDataPreviewHead").innerHTML = headHtml;
+            
+            const bodyHtml = preview.data.map(row => {
+                return `<tr>${row.map(val => {
+                    const displayVal = val === null || val === undefined || val === '' ? 
+                        '<span class="text-muted">null</span>' : 
+                        String(val);
+                    return `<td>${displayVal}</td>`;
+                }).join("")}</tr>`;
+            }).join("");
+            document.getElementById("currentDataPreviewBody").innerHTML = bodyHtml;
+        }
+        
+    } catch (error) {
+        console.error("View current data error:", error);
+        showToast("Error", "Failed to load current data: " + error.message, "error");
+    }
+}
+
+// Add event listeners for all "View Current Data" buttons
+document.getElementById("viewCurrentDataBtn").addEventListener("click", viewCurrentDataState);
+document.getElementById("viewCurrentDataBtnQuality").addEventListener("click", viewCurrentDataState);
+document.getElementById("viewCurrentDataBtnCleaning").addEventListener("click", viewCurrentDataState);
 
 // ════════════════════════════════════════════════════════
 //  DIMENSIONALITY REDUCTION
@@ -1803,6 +1917,10 @@ document.getElementById("resetBtn").addEventListener("click", async () => {
     document.getElementById("statRows").textContent = "—";
     document.getElementById("statCols").textContent = "—";
     document.getElementById("statQuality").textContent = "—";
+    // Clear target column field and reset task type
+    document.getElementById("targetSelect").value = "";
+    document.getElementById("targetSelect").innerHTML = '<option value="">— Upload data first —</option>';
+    document.getElementById("taskClf").checked = true;
     navigateTo("dashboard");
     showToast("Reset", "Session cleared", "success");
 });

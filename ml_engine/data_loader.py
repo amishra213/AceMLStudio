@@ -25,9 +25,9 @@ def _sanitize_for_json(value):
         return None
     if pd.isna(value):  # Catches pd.NA, np.nan, pd.NaT, None
         return None
-    if isinstance(value, (np.integer, np.int64, np.int32)):
+    if isinstance(value, np.integer):
         return int(value)
-    if isinstance(value, (np.floating, np.float64, np.float32)):
+    if isinstance(value, np.floating):
         if np.isnan(value) or np.isinf(value):
             return None
         return float(value)
@@ -44,8 +44,38 @@ def _sanitize_for_json(value):
 class DataLoader:
     """Handles loading, previewing, and basic info for uploaded datasets."""
 
+    # Encoding fallback chain for CSV files
+    CSV_ENCODING_CHAIN = ['utf-8', 'iso-8859-1', 'cp1252', 'utf-16']
+
+    @staticmethod
+    def _load_csv_with_encoding(filepath: str, **kwargs) -> pd.DataFrame:
+        """Try to load CSV with multiple encodings to handle different file types."""
+        # Check if encoding is already specified in kwargs
+        if 'encoding' in kwargs:
+            return pd.read_csv(filepath, **kwargs)
+        
+        # Try each encoding in sequence
+        for encoding in DataLoader.CSV_ENCODING_CHAIN:
+            try:
+                logger.debug("Attempting to read CSV with encoding: %s", encoding)
+                return pd.read_csv(filepath, encoding=encoding, **kwargs)
+            except (UnicodeDecodeError, UnicodeError) as e:
+                logger.debug("Failed with %s encoding: %s", encoding, e)
+                continue
+            except Exception as e:
+                # If it's not an encoding error, re-raise it
+                logger.debug("Non-encoding error with %s: %s", encoding, e)
+                raise
+        
+        # If all encodings fail, raise an error with helpful message
+        raise ValueError(
+            f"Failed to read CSV file with any supported encoding ({', '.join(DataLoader.CSV_ENCODING_CHAIN)}). "
+            "The file may be corrupted or use an unsupported encoding. Try opening it in a text editor "
+            "and resaving it as UTF-8."
+        )
+
     LOADERS = {
-        "csv": lambda p, **kw: pd.read_csv(p, **kw),
+        "csv": lambda p, **kw: DataLoader._load_csv_with_encoding(p, **kw),
         "xlsx": lambda p, **kw: pd.read_excel(p, engine="openpyxl", **kw),
         "xls": lambda p, **kw: pd.read_excel(p, **kw),
         "json": lambda p, **kw: pd.read_json(p, **kw),
@@ -92,21 +122,65 @@ class DataLoader:
                           chunksize: int | None = None, **kwargs) -> pd.DataFrame:
         """Read a large CSV in chunks, optionally capping at *max_rows*.
         Each chunk is dtype-optimised before being concatenated so peak
-        memory stays manageable."""
+        memory stays manageable. Handles multiple encodings automatically."""
         chunksize = chunksize or Config.LOW_MEMORY_CSV_CHUNKSIZE
         chunks: list[pd.DataFrame] = []
         rows_read = 0
 
         logger.info("Chunked CSV read started (chunksize=%d, max_rows=%s)",
                     chunksize, max_rows)
-        for chunk in pd.read_csv(filepath, chunksize=chunksize,
-                                 low_memory=True, **kwargs):
-            chunk = cls.optimise_dtypes(chunk)
-            chunks.append(chunk)
-            rows_read += len(chunk)
-            if max_rows and rows_read >= max_rows:
-                break
+        
+        # If encoding is not specified, try multiple encodings
+        if 'encoding' not in kwargs:
+            last_error = None
+            for encoding in cls.CSV_ENCODING_CHAIN:
+                try:
+                    logger.debug("Attempting chunked CSV read with encoding: %s", encoding)
+                    chunks = []
+                    rows_read = 0
+                    
+                    for chunk in pd.read_csv(filepath, chunksize=chunksize,
+                                             low_memory=True, encoding=encoding, **kwargs):
+                        chunk = cls.optimise_dtypes(chunk)
+                        chunks.append(chunk)
+                        rows_read += len(chunk)
+                        if max_rows and rows_read >= max_rows:
+                            break
+                    
+                    # Success - chunks were read successfully
+                    logger.debug("Successfully read CSV with %s encoding", encoding)
+                    break
+                    
+                except (UnicodeDecodeError, UnicodeError) as e:
+                    last_error = e
+                    logger.debug("Failed to read chunked CSV with %s encoding: %s", encoding, e)
+                    continue
+                    
+                except Exception as e:
+                    # Non-encoding errors should be raised immediately
+                    logger.error("Error reading chunked CSV with %s encoding: %s", encoding, e)
+                    raise
+            
+            # If all encodings failed
+            if not chunks and last_error:
+                raise ValueError(
+                    f"Failed to read CSV file with any supported encoding ({', '.join(cls.CSV_ENCODING_CHAIN)}). "
+                    "The file may be corrupted or use an unsupported encoding. Try opening it in a text editor "
+                    "and resaving it as UTF-8."
+                )
+        else:
+            # Use the specified encoding
+            for chunk in pd.read_csv(filepath, chunksize=chunksize,
+                                     low_memory=True, **kwargs):
+                chunk = cls.optimise_dtypes(chunk)
+                chunks.append(chunk)
+                rows_read += len(chunk)
+                if max_rows and rows_read >= max_rows:
+                    break
 
+        if not chunks:
+            raise ValueError("Failed to load any data from the CSV file")
+        
         df = pd.concat(chunks, ignore_index=True)
         if max_rows and len(df) > max_rows:
             df = df.iloc[:max_rows]

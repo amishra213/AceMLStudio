@@ -6,6 +6,7 @@ DataFrame and optionally the fitted transformer for inverse operations.
 """
 
 import logging
+import re
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import (
@@ -105,6 +106,10 @@ class DataTransformer:
         for col in columns:
             if col not in df.columns:
                 continue
+            # Convert categorical to object first to allow new values
+            if pd.api.types.is_categorical_dtype(df[col]):
+                df[col] = df[col].astype('object')
+            
             le = LabelEncoder()
             non_null = df[col].dropna()
             le.fit(non_null.astype(str))
@@ -176,9 +181,45 @@ class DataTransformer:
     #  Data Type Conversion
     # ------------------------------------------------------------------ #
     @staticmethod
+    def _clean_numeric_string(value) -> str:
+        """
+        Clean a value for numeric conversion by removing currency symbols,
+        commas, percent signs, and other common formatting.
+        
+        Examples:
+            '$1,234.56' -> '1234.56'
+            '€99.99' -> '99.99'
+            '1,234' -> '1234'
+            '45%' -> '45'
+        """
+        if pd.isna(value):
+            return value
+        
+        s = str(value).strip()
+        
+        # Remove common currency symbols: $, €, £, ¥, ₹, ₽, etc.
+        s = re.sub(r'[$€£¥₹₽¢₩₪₦₨฿₴₸₵₡₢₣₤₧₮₰₲₳₴₵₶₷₸₹₺₻₼₽₾₿]', '', s)
+        
+        # Remove commas used as thousand separators
+        s = re.sub(r',', '', s)
+        
+        # Remove percent signs
+        s = re.sub(r'%', '', s)
+        
+        # Remove spaces
+        s = s.replace(' ', '')
+        
+        # Handle parentheses for negative numbers (accounting format)
+        if s.startswith('(') and s.endswith(')'):
+            s = '-' + s[1:-1]
+        
+        return s
+    
+    @staticmethod
     def convert_dtype(df: pd.DataFrame, columns: list[str], target_dtype: str) -> pd.DataFrame:
         """
         Convert columns to specified data type.
+        Automatically cleans currency symbols and formatting for numeric conversions.
         
         Args:
             df: DataFrame to convert
@@ -194,24 +235,52 @@ class DataTransformer:
             if col not in df.columns:
                 continue
             
+            # Convert categorical to object first to avoid assignment issues
+            if pd.api.types.is_categorical_dtype(df[col]):
+                df[col] = df[col].astype('object')
+            
             try:
+                original_non_null = df[col].notna().sum()
+                
                 if target_dtype == 'int':
-                    df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')  # Nullable integer
+                    # Clean and convert to numeric
+                    cleaned = df[col].apply(DataTransformer._clean_numeric_string)
+                    df[col] = pd.to_numeric(cleaned, errors='coerce').astype('Int64')  # Nullable integer
+                    
                 elif target_dtype == 'float':
-                    df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
+                    # Clean and convert to numeric
+                    cleaned = df[col].apply(DataTransformer._clean_numeric_string)
+                    df[col] = pd.to_numeric(cleaned, errors='coerce').astype(float)
+                    
                 elif target_dtype == 'str' or target_dtype == 'string':
                     df[col] = df[col].astype(str)
+                    
                 elif target_dtype == 'category':
                     df[col] = df[col].astype('category')
+                    
                 elif target_dtype == 'datetime':
                     df[col] = pd.to_datetime(df[col], errors='coerce')
+                    
                 elif target_dtype == 'bool' or target_dtype == 'boolean':
                     df[col] = df[col].astype(bool)
+                    
                 else:
                     logger.warning("Unknown dtype '%s' for column '%s'", target_dtype, col)
                     continue
                 
-                logger.info("Converted column '%s' to %s", col, target_dtype)
+                # Check for data loss
+                final_non_null = df[col].notna().sum()
+                if final_non_null < original_non_null:
+                    lost = original_non_null - final_non_null
+                    loss_pct = (lost / original_non_null * 100) if original_non_null > 0 else 0
+                    logger.warning(
+                        "Column '%s' conversion to %s caused data loss: %d values (%.1f%%) became null",
+                        col, target_dtype, lost, loss_pct
+                    )
+                
+                logger.info("Converted column '%s' to %s (preserved %d/%d values)", 
+                          col, target_dtype, final_non_null, original_non_null)
+                          
             except Exception as e:
                 logger.error("Failed to convert column '%s' to %s: %s", col, target_dtype, e)
                 raise ValueError(f"Cannot convert column '{col}' to {target_dtype}: {str(e)}")

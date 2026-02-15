@@ -642,6 +642,46 @@ def data_columns():
     })
 
 
+@app.route("/api/data/current")
+def data_current():
+    """Get current data state with full info and preview after all transformations."""
+    df = _df()
+    if df is None:
+        return _err("No dataset loaded", 404)
+    
+    try:
+        info = DataLoader.get_info(df)
+        preview = DataLoader.get_preview(df, 20)  # Show more rows for inspection
+        
+        # Include basic quality metrics
+        quality_summary = {
+            "total_rows": len(df),
+            "total_columns": len(df.columns),
+            "missing_cells": int(df.isna().sum().sum()),
+            "missing_percentage": float(df.isna().sum().sum() / (len(df) * len(df.columns)) * 100),
+            "memory_usage_mb": float(df.memory_usage(deep=True).sum() / (1024 * 1024))
+        }
+        
+        return _ok({
+            "info": info,
+            "preview": preview,
+            "quality_summary": quality_summary,
+            "column_details": [
+                {
+                    "name": col,
+                    "dtype": str(df[col].dtype),
+                    "non_null": int(df[col].notna().sum()),
+                    "null": int(df[col].isna().sum()),
+                    "null_pct": float(df[col].isna().sum() / len(df) * 100) if len(df) > 0 else 0
+                }
+                for col in df.columns
+            ]
+        })
+    except Exception as e:
+        logger.error("Failed to get current data state: %s", e, exc_info=True)
+        return _err(f"Failed to get current data: {e}")
+
+
 # ────────────────────────────────────────────────────────────────────
 #  Data Quality
 # ────────────────────────────────────────────────────────────────────
@@ -837,8 +877,17 @@ def reduce_dimensions():
 # ────────────────────────────────────────────────────────────────────
 #  Set Target & Task
 # ────────────────────────────────────────────────────────────────────
-@app.route("/api/config/target", methods=["POST"])
+@app.route("/api/config/target", methods=["POST", "GET"])
 def set_target():
+    if request.method == "GET":
+        # Return current target/task configuration
+        store = _store()
+        return _ok({
+            "target": store.get("target"),
+            "task": store.get("task", "classification")
+        })
+    
+    # POST: Set target and task
     body = request.get_json(silent=True) or {}
     target = body.get("target")
     task = body.get("task", "classification")
