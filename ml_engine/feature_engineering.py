@@ -317,7 +317,13 @@ class FeatureEngineer:
         
         try:
             # Extract first match of pattern
-            df[new_col_name] = df[column].astype(str).str.extract(f'({pattern})', expand=False)
+            # Use expand=False to get a Series (only first capturing group)
+            extracted = df[column].astype(str).str.extract(f'({pattern})', expand=False)
+            # If multiple columns returned, take the first one
+            if isinstance(extracted, pd.DataFrame):
+                df[new_col_name] = extracted.iloc[:, 0]
+            else:
+                df[new_col_name] = extracted
             logger.info("Extracted pattern '%s' from '%s' → '%s'", pattern, column, new_col_name)
         except Exception as e:
             logger.error("Failed to extract pattern: %s", e)
@@ -388,7 +394,7 @@ class FeatureEngineer:
                                    new_col_name: str | None = None) -> pd.DataFrame:
         """
         Create column based on condition.
-        condition examples: '>50', '==100', 'contains:text', 'startswith:A'
+        condition examples: '>50', '==100', '==Yes', 'contains:text', 'startswith:A'
         """
         df = df.copy()
         if column not in df.columns:
@@ -410,14 +416,21 @@ class FeatureEngineer:
                 suffix = condition.split(':', 1)[1]
                 mask = df[column].astype(str).str.endswith(suffix, na=False)
             elif any(op in condition for op in ['>=', '<=', '==', '!=', '>', '<']):
-                # Numeric comparison - use eval safely with only column data
+                # Detect which operator is used
                 import operator
                 ops = {'>=': operator.ge, '<=': operator.le, '==': operator.eq,
                        '!=': operator.ne, '>': operator.gt, '<': operator.lt}
                 for op_str, op_func in ops.items():
                     if op_str in condition:
-                        threshold = float(condition.replace(op_str, '').strip())
-                        mask = op_func(df[column], threshold)
+                        value_str = condition.replace(op_str, '').strip()
+                        
+                        # Try to convert to numeric, otherwise use string comparison
+                        try:
+                            threshold = float(value_str)
+                            mask = op_func(df[column], threshold)
+                        except ValueError:
+                            # String comparison
+                            mask = op_func(df[column].astype(str), value_str)
                         break
             else:
                 raise ValueError(f"Unsupported condition format: {condition}")
