@@ -272,6 +272,16 @@ function populateColumnSelects() {
         populateSelect(document.getElementById("dateFeatureCols"), d.columns);
         populateSelect(document.getElementById("mathTransCols"), d.numeric);
         populateSelect(document.getElementById("textFeatureCols"), d.categorical);
+        
+        // NEW: Column creation features
+        populateSelect(document.getElementById("arithColA"), d.numeric);
+        populateSelect(document.getElementById("arithColB"), d.numeric);
+        populateSelect(document.getElementById("aggCols"), d.numeric);
+        populateSelect(document.getElementById("substrCol"), d.categorical);
+        populateSelect(document.getElementById("splitCol"), d.categorical);
+        populateSelect(document.getElementById("concatCols"), d.columns);
+        populateSelect(document.getElementById("patternCol"), d.categorical);
+        populateSelect(document.getElementById("condCol"), d.columns);
 
         // Transform
         populateSelect(document.getElementById("scaleCols"), d.numeric);
@@ -844,6 +854,200 @@ document.getElementById("textLenBtn").addEventListener("click", async () => {
     const cols = Array.from(document.getElementById("textFeatureCols").selectedOptions).map(o => o.value);
     if (!cols.length) { showToast("Warning", "Select text columns", "error"); return; }
     await applyFeature([{ action: "text_length_feature", params: { columns: cols } }]);
+});
+
+// NEW: Arithmetic Operations
+document.getElementById("arithBtn").addEventListener("click", async () => {
+    const colA = document.getElementById("arithColA").value;
+    const colB = document.getElementById("arithColB").value;
+    const operation = document.getElementById("arithOp").value;
+    const newName = document.getElementById("arithNewName").value || null;
+    
+    if (!colA || !colB) { showToast("Warning", "Select both columns", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "create_arithmetic_column", 
+        params: { col_a: colA, col_b: colB, operation, new_col_name: newName } 
+    }]);
+});
+
+// NEW: Row Aggregations
+document.getElementById("aggBtn").addEventListener("click", async () => {
+    const cols = Array.from(document.getElementById("aggCols").selectedOptions).map(o => o.value);
+    const aggregation = document.getElementById("aggType").value;
+    const newName = document.getElementById("aggNewName").value || null;
+    
+    if (!cols.length) { showToast("Warning", "Select columns to aggregate", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "create_row_aggregate", 
+        params: { columns: cols, aggregation, new_col_name: newName } 
+    }]);
+});
+
+// NEW: String Operations - Tab Switching
+document.getElementById("stringTabSubstr").addEventListener("click", () => {
+    document.getElementById("stringSubstrPanel").style.display = "block";
+    document.getElementById("stringSplitPanel").style.display = "none";
+    document.getElementById("stringConcatPanel").style.display = "none";
+    document.getElementById("stringPatternPanel").style.display = "none";
+    document.getElementById("stringTabSubstr").classList.add("active");
+    document.getElementById("stringTabSplit").classList.remove("active");
+    document.getElementById("stringTabConcat").classList.remove("active");
+    document.getElementById("stringTabPattern").classList.remove("active");
+});
+
+document.getElementById("stringTabSplit").addEventListener("click", () => {
+    document.getElementById("stringSubstrPanel").style.display = "none";
+    document.getElementById("stringSplitPanel").style.display = "block";
+    document.getElementById("stringConcatPanel").style.display = "none";
+    document.getElementById("stringPatternPanel").style.display = "none";
+    document.getElementById("stringTabSubstr").classList.remove("active");
+    document.getElementById("stringTabSplit").classList.add("active");
+    document.getElementById("stringTabConcat").classList.remove("active");
+    document.getElementById("stringTabPattern").classList.remove("active");
+});
+
+document.getElementById("stringTabConcat").addEventListener("click", () => {
+    document.getElementById("stringSubstrPanel").style.display = "none";
+    document.getElementById("stringSplitPanel").style.display = "none";
+    document.getElementById("stringConcatPanel").style.display = "block";
+    document.getElementById("stringPatternPanel").style.display = "none";
+    document.getElementById("stringTabSubstr").classList.remove("active");
+    document.getElementById("stringTabSplit").classList.remove("active");
+    document.getElementById("stringTabConcat").classList.add("active");
+    document.getElementById("stringTabPattern").classList.remove("active");
+});
+
+document.getElementById("stringTabPattern").addEventListener("click", () => {
+    document.getElementById("stringSubstrPanel").style.display = "none";
+    document.getElementById("stringSplitPanel").style.display = "none";
+    document.getElementById("stringConcatPanel").style.display = "none";
+    document.getElementById("stringPatternPanel").style.display = "block";
+    document.getElementById("stringTabSubstr").classList.remove("active");
+    document.getElementById("stringTabSplit").classList.remove("active");
+    document.getElementById("stringTabConcat").classList.remove("active");
+    document.getElementById("stringTabPattern").classList.add("active");
+});
+
+// NEW: Substring Extraction
+document.getElementById("substrBtn").addEventListener("click", async () => {
+    const column = document.getElementById("substrCol").value;
+    const start = parseInt(document.getElementById("substrStart").value);
+    const endVal = document.getElementById("substrEnd").value;
+    const end = endVal ? parseInt(endVal) : null;
+    const newName = document.getElementById("substrNewName").value || null;
+    
+    if (!column) { showToast("Warning", "Select column", "error"); return; }
+    if (isNaN(start)) { showToast("Warning", "Enter valid start position", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "extract_substring", 
+        params: { column, start, end, new_col_name: newName } 
+    }]);
+});
+
+// NEW: Column Split
+document.getElementById("splitBtn").addEventListener("click", async () => {
+    const column = document.getElementById("splitCol").value;
+    const delimiter = document.getElementById("splitDelim").value;
+    const maxSplits = parseInt(document.getElementById("splitMax").value);
+    const prefix = document.getElementById("splitPrefix").value || null;
+    
+    if (!column) { showToast("Warning", "Select column", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "split_column", 
+        params: { column, delimiter, max_splits: maxSplits, prefix } 
+    }]);
+});
+
+// NEW: Column Concatenation
+document.getElementById("concatBtn").addEventListener("click", async () => {
+    const cols = Array.from(document.getElementById("concatCols").selectedOptions).map(o => o.value);
+    const separator = document.getElementById("concatSep").value;
+    const newName = document.getElementById("concatNewName").value || null;
+    
+    if (!cols.length) { showToast("Warning", "Select columns to concatenate", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "concatenate_columns", 
+        params: { columns: cols, separator, new_col_name: newName } 
+    }]);
+});
+
+// NEW: Pattern Extraction
+document.getElementById("patternBtn").addEventListener("click", async () => {
+    const column = document.getElementById("patternCol").value;
+    const pattern = document.getElementById("patternRegex").value;
+    const newName = document.getElementById("patternNewName").value || null;
+    
+    if (!column) { showToast("Warning", "Select column", "error"); return; }
+    if (!pattern) { showToast("Warning", "Enter regex pattern", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "extract_pattern", 
+        params: { column, pattern, new_col_name: newName } 
+    }]);
+});
+
+// NEW: Custom Operations - Tab Switching
+document.getElementById("customTabCond").addEventListener("click", () => {
+    document.getElementById("customCondPanel").style.display = "block";
+    document.getElementById("customFormulaPanel").style.display = "none";
+    document.getElementById("customTabCond").classList.add("active");
+    document.getElementById("customTabFormula").classList.remove("active");
+});
+
+document.getElementById("customTabFormula").addEventListener("click", () => {
+    document.getElementById("customCondPanel").style.display = "none";
+    document.getElementById("customFormulaPanel").style.display = "block";
+    document.getElementById("customTabCond").classList.remove("active");
+    document.getElementById("customTabFormula").classList.add("active");
+});
+
+// NEW: Conditional Column
+document.getElementById("condBtn").addEventListener("click", async () => {
+    const column = document.getElementById("condCol").value;
+    const condition = document.getElementById("condExpr").value;
+    const valueIfTrue = document.getElementById("condTrue").value;
+    const valueIfFalse = document.getElementById("condFalse").value;
+    const newName = document.getElementById("condNewName").value || null;
+    
+    if (!column) { showToast("Warning", "Select column", "error"); return; }
+    if (!condition) { showToast("Warning", "Enter condition", "error"); return; }
+    if (!valueIfTrue || !valueIfFalse) { showToast("Warning", "Enter both true and false values", "error"); return; }
+    
+    // Try to parse as numeric if possible
+    const parseValue = (val) => {
+        const num = parseFloat(val);
+        return isNaN(num) ? val : num;
+    };
+    
+    await applyFeature([{ 
+        action: "create_conditional_column", 
+        params: { 
+            column, 
+            condition, 
+            value_if_true: parseValue(valueIfTrue), 
+            value_if_false: parseValue(valueIfFalse), 
+            new_col_name: newName 
+        } 
+    }]);
+});
+
+// NEW: Custom Formula
+document.getElementById("customBtn").addEventListener("click", async () => {
+    const formula = document.getElementById("customFormula").value;
+    const newName = document.getElementById("customNewName").value;
+    
+    if (!formula) { showToast("Warning", "Enter formula", "error"); return; }
+    if (!newName) { showToast("Warning", "Enter new column name", "error"); return; }
+    
+    await applyFeature([{ 
+        action: "create_custom_column", 
+        params: { formula, new_col_name: newName } 
+    }]);
 });
 
 async function applyFeature(operations) {

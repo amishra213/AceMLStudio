@@ -9,6 +9,7 @@ import logging
 import re
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_categorical_dtype  # type: ignore
 from sklearn.preprocessing import (
     StandardScaler,
     MinMaxScaler,
@@ -106,23 +107,47 @@ class DataTransformer:
         for col in columns:
             if col not in df.columns:
                 continue
+            
+            # Store original info for logging
+            unique_before = df[col].nunique()
+            original_dtype = df[col].dtype
+            
             # Convert categorical to object first to allow new values
-            if pd.api.types.is_categorical_dtype(df[col]):
+            if is_categorical_dtype(df[col]):
                 df[col] = df[col].astype('object')
             
+            # Create label encoder and fit on non-null values
             le = LabelEncoder()
-            non_null = df[col].dropna()
-            le.fit(non_null.astype(str))
-            df.loc[non_null.index, col] = le.transform(non_null.astype(str))  # type: ignore
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            null_mask = df[col].isna()
+            non_null_values = df[col][~null_mask].astype(str)
+            
+            le.fit(non_null_values)
+            encoded_values = le.transform(non_null_values)
+            
+            # CRITICAL FIX: Properly assign encoded values with correct dtype
+            # Use float64 if there are NaNs (to preserve them), otherwise int64
+            if null_mask.any():
+                # Create float column to accommodate NaNs
+                new_col = pd.Series(np.nan, index=df.index, dtype='float64')
+                new_col.loc[~null_mask] = encoded_values  # type: ignore
+                df[col] = new_col
+            else:
+                # No NaNs: use int64 for efficiency
+                # Convert to list to satisfy type checker
+                df[col] = pd.Series(list(encoded_values), dtype='int64', index=df.index)  # type: ignore
+            
             encoders[col] = le
+            logger.info(
+                "Label encoded '%s': %d unique %s values → %d encoded integers (dtype: %s → %s)",
+                col, unique_before, original_dtype, len(le.classes_), original_dtype, df[col].dtype
+            )
         return df, encoders
 
     # ------------------------------------------------------------------ #
     #  Encoding – Ordinal
     # ------------------------------------------------------------------ #
     @staticmethod
-    def ordinal_encode(df: pd.DataFrame, columns: list[str], categories_order: dict = None) -> tuple[pd.DataFrame, dict]:
+    def ordinal_encode(df: pd.DataFrame, columns: list[str], categories_order: dict | None = None) -> tuple[pd.DataFrame, dict]:
         """
         Ordinal encode categorical columns with user-defined or auto-detected order.
         
@@ -145,6 +170,7 @@ class DataTransformer:
             
             # Get unique categories
             unique_cats = df[col].dropna().unique()
+            original_dtype = df[col].dtype
             
             # Use provided order or auto-detect (sorted)
             if col in categories_order:
@@ -156,9 +182,22 @@ class DataTransformer:
             cat_mapping = {cat: idx for idx, cat in enumerate(ordered_cats)}
             mappings[col] = cat_mapping
             
-            # Apply encoding
-            df[col] = df[col].map(cat_mapping)
-            logger.info("Ordinal encoded '%s' with %d categories", col, len(ordered_cats))
+            # CRITICAL FIX: Apply encoding with explicit dtype conversion
+            # Use .map() then explicitly convert to handle NaNs properly
+            null_mask = df[col].isna()
+            encoded = df[col].map(cat_mapping)
+            
+            if null_mask.any():
+                # Preserve NaNs by using float64
+                df[col] = encoded.astype('float64')
+            else:
+                # No NaNs: use int64 for efficiency
+                df[col] = encoded.astype('int64')
+            
+            logger.info(
+                "Ordinal encoded '%s': %d categories (dtype: %s → %s)", 
+                col, len(ordered_cats), original_dtype, df[col].dtype
+            )
         
         return df, mappings
 
@@ -173,8 +212,18 @@ class DataTransformer:
         for col in columns:
             if col not in df.columns:
                 continue
+            
+            unique_before = df[col].nunique()
             means = df.groupby(col)[target].mean()
-            df[f"{col}_target_enc"] = df[col].map(means)
+            
+            # CRITICAL FIX: Create new column with explicit float64 dtype
+            # This ensures the encoded column is properly numeric
+            df[f"{col}_target_enc"] = df[col].map(means).astype('float64')
+            
+            logger.info(
+                "Target encoded '%s': %d unique values → mean encoding (new column: %s_target_enc, dtype: float64)",
+                col, unique_before, col
+            )
         return df
 
     # ------------------------------------------------------------------ #
@@ -236,7 +285,7 @@ class DataTransformer:
                 continue
             
             # Convert categorical to object first to avoid assignment issues
-            if pd.api.types.is_categorical_dtype(df[col]):
+            if is_categorical_dtype(df[col]):
                 df[col] = df[col].astype('object')
             
             try:

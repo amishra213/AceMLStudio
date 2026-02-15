@@ -451,10 +451,14 @@
                             <p><strong>Simple analogy:</strong> If you're predicting house prices, instead of just the build date, you might create a new column for "house age" - that's more directly useful!</p>
                             <p><strong>Available transformations:</strong></p>
                             <ul>
-                                <li><strong>Date features:</strong> Extract year, month, day, day of week from dates. Example: From "2024-05-15" create "May", "Wednesday", "2024"</li>
-                                <li><strong>Log transform:</strong> Compresses large values, good for skewed data like income or prices</li>
-                                <li><strong>Square root:</strong> Similar to log but gentler, useful for count data</li>
-                                <li><strong>Text features:</strong> Extract length and word count from text columns</li>
+                                <li><strong>Date features:</strong> Extract year, month, day, day of week from dates</li>
+                                <li><strong>Log/sqrt transforms:</strong> Compress large values for skewed data</li>
+                                <li><strong>Text features:</strong> Extract length and word count from text</li>
+                                <li><strong>Arithmetic:</strong> Combine columns with math operations (add, multiply, divide, etc.)</li>
+                                <li><strong>Aggregations:</strong> Calculate sum, mean, min, max across multiple columns</li>
+                                <li><strong>String extraction:</strong> Split names, extract substrings, extract patterns (emails, phone numbers)</li>
+                                <li><strong>Conditional columns:</strong> Create if-then-else columns based on conditions</li>
+                                <li><strong>Custom formulas:</strong> Advanced - create columns using custom mathematical formulas</li>
                             </ul>
                             <p><strong>When to use:</strong> After cleaning and before training. Good features can dramatically improve prediction accuracy!</p>
                         </div>
@@ -498,6 +502,190 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- New Column Creation Features -->
+                    <h6 class="mt-5 mb-4"><i class="fas fa-plus-circle me-2"></i>Create New Columns</h6>
+                    <div class="row g-4">
+                        <!-- Arithmetic Operations -->
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Arithmetic Operations</div>
+                                <div class="card-body">
+                                    <label class="form-label">Column A</label>
+                                    <select class="form-select mb-2" id="arithColA"></select>
+                                    <label class="form-label">Operation</label>
+                                    <select class="form-select mb-2" id="arithOp">
+                                        <option value="add">Add (+)</option>
+                                        <option value="subtract">Subtract (-)</option>
+                                        <option value="multiply">Multiply (×)</option>
+                                        <option value="divide">Divide (÷)</option>
+                                        <option value="power">Power (^)</option>
+                                        <option value="modulo">Modulo (%)</option>
+                                    </select>
+                                    <label class="form-label">Column B</label>
+                                    <select class="form-select mb-2" id="arithColB"></select>
+                                    <label class="form-label">New Column Name (optional)</label>
+                                    <input type="text" class="form-control mb-3" id="arithNewName" placeholder="Auto-generated if empty">
+                                    <button class="btn btn-success w-100" id="arithBtn"><i class="fas fa-calculator me-1"></i>Create Arithmetic Column</button>
+                                    <div class="control-description mt-2">Combine two numeric columns with math operations. Example: Create "Total Price" = Quantity × Unit Price</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Row Aggregations -->
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Row Aggregations</div>
+                                <div class="card-body">
+                                    <label class="form-label">Numeric Columns</label>
+                                    <select class="form-select mb-2" id="aggCols" multiple></select>
+                                    <label class="form-label">Aggregation</label>
+                                    <select class="form-select mb-2" id="aggType">
+                                        <option value="sum">Sum</option>
+                                        <option value="mean">Mean (Average)</option>
+                                        <option value="median">Median</option>
+                                        <option value="min">Minimum</option>
+                                        <option value="max">Maximum</option>
+                                        <option value="std">Standard Deviation</option>
+                                    </select>
+                                    <label class="form-label">New Column Name (optional)</label>
+                                    <input type="text" class="form-control mb-3" id="aggNewName" placeholder="Auto-generated if empty">
+                                    <button class="btn btn-success w-100" id="aggBtn"><i class="fas fa-chart-bar me-1"></i>Create Aggregate Column</button>
+                                    <div class="control-description mt-2">Aggregate values across multiple columns for each row. Example: Calculate total score from multiple test scores</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- String Operations -->
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">String Extraction & Manipulation</div>
+                                <div class="card-body">
+                                    <div class="btn-group w-100 mb-3" role="group">
+                                        <button type="button" class="btn btn-outline-primary active" id="stringTabSubstr">Substring</button>
+                                        <button type="button" class="btn btn-outline-primary" id="stringTabSplit">Split</button>
+                                        <button type="button" class="btn btn-outline-primary" id="stringTabConcat">Concat</button>
+                                        <button type="button" class="btn btn-outline-primary" id="stringTabPattern">Pattern</button>
+                                    </div>
+                                    
+                                    <!-- Substring Tab -->
+                                    <div id="stringSubstrPanel">
+                                        <label class="form-label">Column</label>
+                                        <select class="form-select mb-2" id="substrCol"></select>
+                                        <div class="row mb-2">
+                                            <div class="col-6">
+                                                <label class="form-label">Start Position</label>
+                                                <input type="number" class="form-control" id="substrStart" value="0">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label">End Position</label>
+                                                <input type="number" class="form-control" id="substrEnd" placeholder="Leave empty for end">
+                                            </div>
+                                        </div>
+                                        <label class="form-label">New Column Name (optional)</label>
+                                        <input type="text" class="form-control mb-3" id="substrNewName" placeholder="Auto-generated if empty">
+                                        <button class="btn btn-success w-100" id="substrBtn"><i class="fas fa-cut me-1"></i>Extract Substring</button>
+                                        <div class="control-description mt-2">Extract part of text. Example: Get first 3 characters of product code</div>
+                                    </div>
+
+                                    <!-- Split Tab -->
+                                    <div id="stringSplitPanel" style="display:none">
+                                        <label class="form-label">Column</label>
+                                        <select class="form-select mb-2" id="splitCol"></select>
+                                        <label class="form-label">Delimiter</label>
+                                        <input type="text" class="form-control mb-2" id="splitDelim" value=" " placeholder="Space, comma, etc.">
+                                        <label class="form-label">Max Splits</label>
+                                        <input type="number" class="form-control mb-2" id="splitMax" value="2" min="1" max="10">
+                                        <label class="form-label">Prefix for new columns (optional)</label>
+                                        <input type="text" class="form-control mb-3" id="splitPrefix" placeholder="Uses original column name if empty">
+                                        <button class="btn btn-success w-100" id="splitBtn"><i class="fas fa-scissors me-1"></i>Split Column</button>
+                                        <div class="control-description mt-2">Split text into multiple columns. Example: Split "John Doe" into "First Name" and "Last Name"</div>
+                                    </div>
+
+                                    <!-- Concatenate Tab -->
+                                    <div id="stringConcatPanel" style="display:none">
+                                        <label class="form-label">Columns to Combine</label>
+                                        <select class="form-select mb-2" id="concatCols" multiple></select>
+                                        <label class="form-label">Separator</label>
+                                        <input type="text" class="form-control mb-2" id="concatSep" value=" " placeholder="Space, dash, etc.">
+                                        <label class="form-label">New Column Name (optional)</label>
+                                        <input type="text" class="form-control mb-3" id="concatNewName" placeholder="Auto-generated if empty">
+                                        <button class="btn btn-success w-100" id="concatBtn"><i class="fas fa-link me-1"></i>Concatenate Columns</button>
+                                        <div class="control-description mt-2">Join multiple columns into one. Example: Combine "First Name" + "Last Name" → "Full Name"</div>
+                                    </div>
+
+                                    <!-- Pattern Tab -->
+                                    <div id="stringPatternPanel" style="display:none">
+                                        <label class="form-label">Column</label>
+                                        <select class="form-select mb-2" id="patternCol"></select>
+                                        <label class="form-label">Pattern (Regex)</label>
+                                        <input type="text" class="form-control mb-2" id="patternRegex" placeholder="e.g., \\d+ for numbers, [A-Z]{3} for 3 letters">
+                                        <div class="alert alert-info" style="font-size: 0.75rem; padding: 0.5rem;">
+                                            <strong>Common patterns:</strong><br>
+                                            <code>\\d+</code> = numbers | <code>[A-Z]+</code> = uppercase letters<br>
+                                            <code>\\w+@\\w+</code> = email | <code>https?://\\S+</code> = URL
+                                        </div>
+                                        <label class="form-label">New Column Name (optional)</label>
+                                        <input type="text" class="form-control mb-3" id="patternNewName" placeholder="Auto-generated if empty">
+                                        <button class="btn btn-success w-100" id="patternBtn"><i class="fas fa-search me-1"></i>Extract Pattern</button>
+                                        <div class="control-description mt-2">Extract text matching a pattern. Example: Extract email addresses or phone numbers from text</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conditional & Custom -->
+                        <div class="col-lg-6">
+                            <div class="card glass-card">
+                                <div class="card-header">Conditional & Custom Columns</div>
+                                <div class="card-body">
+                                    <div class="btn-group w-100 mb-3" role="group">
+                                        <button type="button" class="btn btn-outline-primary active" id="customTabCond">Conditional</button>
+                                        <button type="button" class="btn btn-outline-primary" id="customTabFormula">Formula</button>
+                                    </div>
+
+                                    <!-- Conditional Tab -->
+                                    <div id="customCondPanel">
+                                        <label class="form-label">Column</label>
+                                        <select class="form-select mb-2" id="condCol"></select>
+                                        <label class="form-label">Condition</label>
+                                        <input type="text" class="form-control mb-2" id="condExpr" placeholder="e.g., >50, ==100, contains:Premium">
+                                        <div class="alert alert-info" style="font-size: 0.75rem; padding: 0.5rem;">
+                                            <strong>Examples:</strong> <code>&gt;50</code> <code>&lt;=100</code> <code>==Yes</code> <code>contains:Premium</code> <code>startswith:A</code>
+                                        </div>
+                                        <div class="row mb-2">
+                                            <div class="col-6">
+                                                <label class="form-label">If True</label>
+                                                <input type="text" class="form-control" id="condTrue" placeholder="Value if true">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label">If False</label>
+                                                <input type="text" class="form-control" id="condFalse" placeholder="Value if false">
+                                            </div>
+                                        </div>
+                                        <label class="form-label">New Column Name (optional)</label>
+                                        <input type="text" class="form-control mb-3" id="condNewName" placeholder="Auto-generated if empty">
+                                        <button class="btn btn-success w-100" id="condBtn"><i class="fas fa-code-branch me-1"></i>Create Conditional Column</button>
+                                        <div class="control-description mt-2">Create if-then-else column. Example: If Price > 100 then "Expensive" else "Affordable"</div>
+                                    </div>
+
+                                    <!-- Formula Tab -->
+                                    <div id="customFormulaPanel" style="display:none">
+                                        <label class="form-label">Custom Formula</label>
+                                        <textarea class="form-control mb-2" id="customFormula" rows="3" placeholder="e.g., col_a * 2 + col_b&#10;or np.sqrt(col_a)"></textarea>
+                                        <div class="alert alert-warning" style="font-size: 0.75rem; padding: 0.5rem;">
+                                            <strong>Available:</strong> Column names, <code>np.sqrt</code>, <code>np.log</code>, <code>abs</code>, <code>round</code>, <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>**</code>
+                                        </div>
+                                        <label class="form-label">New Column Name</label>
+                                        <input type="text" class="form-control mb-3" id="customNewName" placeholder="Required" required>
+                                        <button class="btn btn-success w-100" id="customBtn"><i class="fas fa-function me-1"></i>Create Custom Column</button>
+                                        <div class="control-description mt-2">Advanced: Create column using custom formula. Example: <code>Price * (1 + Tax_Rate)</code></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card glass-card mt-4" id="featureLog" style="display:none">
                         <div class="card-header">Feature Engineering Log</div>
                         <div class="card-body" id="featureLogBody"></div>
