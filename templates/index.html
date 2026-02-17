@@ -211,7 +211,15 @@
                 <section class="content-section" id="sec-upload">
                     <div class="section-header-with-help">
                         <h6><i class="fas fa-cloud-upload-alt me-2"></i>Upload Dataset</h6>
-                        <button class="help-toggle-btn" data-help="upload-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-success btn-sm" id="loadSavedBtn" title="Load a previously saved dataset">
+                                <i class="fas fa-folder-open me-1"></i>Load Saved
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" id="saveDatasetBtn" disabled title="Save current dataset for later use">
+                                <i class="fas fa-save me-1"></i>Save Dataset
+                            </button>
+                            <button class="help-toggle-btn" data-help="upload-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                        </div>
                     </div>
                     <div class="help-panel" id="upload-help">
                         <div class="help-panel-header">
@@ -1686,6 +1694,72 @@
                                     </table>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Dataset Modal -->
+    <div class="modal fade" id="saveDatasetModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-save me-2"></i>Save Dataset</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Dataset Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="saveDatasetName" placeholder="e.g., Customer_Sales_2024" required>
+                        <small class="text-muted">Use a unique, descriptive name</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description (Optional)</label>
+                        <textarea class="form-control" id="saveDatasetDesc" rows="3" placeholder="Describe what this dataset contains..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tags (Optional)</label>
+                        <input type="text" class="form-control" id="saveDatasetTags" placeholder="e.g., sales, 2024, customers (comma-separated)">
+                        <small class="text-muted">Add tags to help organize and find datasets later</small>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Current dataset:</strong> <span id="saveDatasetInfo">Loading...</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmSaveDataset">
+                        <i class="fas fa-save me-1"></i>Save Dataset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Saved Dataset Modal -->
+    <div class="modal fade" id="loadSavedModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-folder-open me-2"></i>Load Saved Dataset</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="searchSavedDatasets" placeholder="Search datasets by name or description...">
+                    </div>
+                    <div id="savedDatasetsList">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading saved datasets...</p>
                         </div>
                     </div>
                 </div>

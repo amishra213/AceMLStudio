@@ -520,6 +520,9 @@ function onUploadSuccess(data) {
     State.dataLoaded = true;
     const { info, preview, filename } = data;
 
+    // Enable save dataset button
+    document.getElementById("saveDatasetBtn").disabled = false;
+
     // Show dataset badge
     document.getElementById("datasetBadge").style.display = "inline-flex";
     document.getElementById("datasetName").textContent = filename;
@@ -595,6 +598,230 @@ document.getElementById("setTargetBtn").addEventListener("click", async () => {
         updateModelCheckboxes();
     }
 });
+
+// ════════════════════════════════════════════════════════
+//  SAVED DATASETS MANAGEMENT
+// ════════════════════════════════════════════════════════
+
+// ─── Save Dataset ───────────────────────────────────────
+document.getElementById("saveDatasetBtn").addEventListener("click", () => {
+    const saveModal = new bootstrap.Modal(document.getElementById("saveDatasetModal"));
+    
+    // Update current dataset info
+    const info = State.dataLoaded ? 
+        `${document.getElementById("statRows")?.textContent || "?"} rows × ${document.getElementById("statCols")?.textContent || "?"} columns` :
+        "No dataset loaded";
+    document.getElementById("saveDatasetInfo").textContent = info;
+    
+    // Clear previous values
+    document.getElementById("saveDatasetName").value = "";
+    document.getElementById("saveDatasetDesc").value = "";
+    document.getElementById("saveDatasetTags").value = "";
+    
+    saveModal.show();
+});
+
+document.getElementById("confirmSaveDataset").addEventListener("click", async () => {
+    const name = document.getElementById("saveDatasetName").value.trim();
+    const description = document.getElementById("saveDatasetDesc").value.trim();
+    const tagsInput = document.getElementById("saveDatasetTags").value.trim();
+    const tags = tagsInput ? tagsInput.split(",").map(t => t.trim()).filter(t => t) : [];
+    
+    if (!name) {
+        showToast("Error", "Dataset name is required", "error");
+        return;
+    }
+    
+    try {
+        showLoading("Saving dataset...");
+        const res = await API.post("/api/datasets/save", { name, description, tags });
+        hideLoading();
+        
+        if (res.status === "ok") {
+            showToast("Success", res.data.message, "success");
+            bootstrap.Modal.getInstance(document.getElementById("saveDatasetModal")).hide();
+        } else {
+            showToast("Error", res.message || "Failed to save dataset", "error");
+        }
+    } catch (error) {
+        hideLoading();
+        console.error("Error saving dataset:", error);
+        showToast("Error", "Failed to save dataset: " + error.message, "error");
+    }
+});
+
+// ─── Load Saved Dataset ─────────────────────────────────
+document.getElementById("loadSavedBtn").addEventListener("click", async () => {
+    const loadModal = new bootstrap.Modal(document.getElementById("loadSavedModal"));
+    loadModal.show();
+    
+    // Load datasets list
+    await loadSavedDatasetsList();
+});
+
+document.getElementById("searchSavedDatasets").addEventListener("input", async (e) => {
+    await loadSavedDatasetsList(e.target.value);
+});
+
+async function loadSavedDatasetsList(search = "") {
+    const listContainer = document.getElementById("savedDatasetsList");
+    listContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    
+    try {
+        const url = search ? `/api/datasets/list?search=${encodeURIComponent(search)}` : "/api/datasets/list";
+        const res = await API.get(url);
+        
+        if (res.status !== "ok") {
+            listContainer.innerHTML = `<div class="alert alert-danger">Failed to load datasets: ${res.message}</div>`;
+            return;
+        }
+        
+        const datasets = res.data.datasets || [];
+        
+        if (datasets.length === 0) {
+            listContainer.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <i class="fas fa-database fa-3x mb-3"></i>
+                    <p>${search ? "No datasets found matching your search" : "No saved datasets yet"}</p>
+                    <p class="small">Save your current dataset to access it later</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        for (const ds of datasets) {
+            const tags = ds.tags && ds.tags.length > 0 ? 
+                ds.tags.map(t => `<span class="badge bg-secondary me-1">${t}</span>`).join("") : "";
+            
+            html += `
+                <div class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">
+                                <i class="fas fa-database me-2 text-primary"></i>${ds.dataset_name}
+                            </h6>
+                            ${ds.description ? `<p class="mb-2 text-muted small">${ds.description}</p>` : ""}
+                            <div class="small text-muted">
+                                <i class="fas fa-table me-1"></i>${ds.rows?.toLocaleString() || 0} rows × ${ds.columns || 0} columns
+                                <span class="ms-3"><i class="fas fa-hdd me-1"></i>${ds.size_mb || 0} MB</span>
+                                <span class="ms-3"><i class="fas fa-clock me-1"></i>${formatDate(ds.updated_at)}</span>
+                            </div>
+                            ${tags ? `<div class="mt-2">${tags}</div>` : ""}
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <button class="btn btn-sm btn-primary" onclick="loadDataset('${ds.dataset_name}')">
+                                <i class="fas fa-folder-open me-1"></i>Load
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteDataset('${ds.dataset_name}')">
+                                <i class="fas fa-trash me-1"></i>Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        
+        listContainer.innerHTML = html;
+    } catch (error) {
+        console.error("Error loading datasets:", error);
+        listContainer.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadDataset(datasetName) {
+    try {
+        showLoading(`Loading dataset '${datasetName}'...`);
+        const res = await API.post(`/api/datasets/load/${encodeURIComponent(datasetName)}`);
+        hideLoading();
+        
+        if (res.status === "ok") {
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById("loadSavedModal"))?.hide();
+            
+            // Update state
+            State.dataLoaded = true;
+            State.targetSet = false; // Reset target when switching datasets
+            const { info, preview, filename, dataset_info } = res.data;
+            
+            // Show dataset badge with loaded dataset name
+            document.getElementById("datasetBadge").style.display = "inline-flex";
+            document.getElementById("datasetName").textContent = filename || datasetName;
+            
+            // Update dashboard stats
+            updateDashboardStats(info);
+            
+            // Update visualization column selects
+            updateVizColumnSelects();
+            
+            // Show preview with updated shape
+            document.getElementById("previewCard").style.display = "block";
+            document.getElementById("previewShape").textContent = `${info.rows} rows × ${info.columns} cols`;
+            buildTable(preview.columns, preview.data, document.getElementById("previewTable"));
+            
+            // Enable save button
+            document.getElementById("saveDatasetBtn").disabled = false;
+            
+            // Populate column selects
+            populateColumnSelects();
+            
+            // Clear previous operation logs
+            document.getElementById("cleaningLog").style.display = "none";
+            document.getElementById("featureLog").style.display = "none";
+            document.getElementById("transformLog").style.display = "none";
+            
+            showToast("Success", res.data.message, "success");
+        } else {
+            showToast("Error", res.message || "Failed to load dataset", "error");
+        }
+    } catch (error) {
+        hideLoading();
+        console.error("Error loading dataset:", error);
+        showToast("Error", "Failed to load dataset: " + error.message, "error");
+    }
+}
+
+async function deleteDataset(datasetName) {
+    if (!confirm(`Are you sure you want to delete dataset '${datasetName}'? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        showLoading("Deleting dataset...");
+        const res = await API.del(`/api/datasets/delete/${encodeURIComponent(datasetName)}`);
+        hideLoading();
+        
+        if (res.status === "ok") {
+            showToast("Success", res.data.message, "success");
+            // Refresh the list
+            await loadSavedDatasetsList(document.getElementById("searchSavedDatasets").value);
+        } else {
+            showToast("Error", res.message || "Failed to delete dataset", "error");
+        }
+    } catch (error) {
+        hideLoading();
+        console.error("Error deleting dataset:", error);
+        showToast("Error", "Failed to delete dataset: " + error.message, "error");
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return "Unknown";
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    
+    return date.toLocaleDateString();
+}
 
 // ════════════════════════════════════════════════════════
 //  DATA QUALITY
@@ -811,6 +1038,10 @@ async function applyClean(operations) {
         updateDashboardStats(info);
         showCleaningLog(log);
         populateColumnSelects();
+        
+        // Enable save button since data has changed
+        document.getElementById("saveDatasetBtn").disabled = false;
+        
         showToast("Done", log.join("; "), "success");
     } catch (error) {
         console.error("Clean error:", error);
@@ -1079,6 +1310,10 @@ async function applyFeature(operations) {
         document.getElementById("featureLogBody").innerHTML = log.map(m =>
             `<div class="log-entry"><i class="fas fa-plus-circle me-2"></i>${m}</div>`).join("");
         populateColumnSelects();
+        
+        // Enable save button since data has changed
+        document.getElementById("saveDatasetBtn").disabled = false;
+        
         showToast("Features Added", log.join("; "), "success");
     } catch (error) {
         console.error("Feature engineering error:", error);
@@ -1144,6 +1379,10 @@ async function applyTransform(operations) {
         document.getElementById("transformLogBody").innerHTML = log.map(m =>
             `<div class="log-entry"><i class="fas fa-sync me-2"></i>${m}</div>`).join("");
         populateColumnSelects();
+        
+        // Enable save button since data has changed
+        document.getElementById("saveDatasetBtn").disabled = false;
+        
         showToast("Transformed", log.join("; "), "success");
     } catch (error) {
         console.error("Transform error:", error);

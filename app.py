@@ -603,6 +603,164 @@ def session_check():
         })
 
 
+# ────────────────────────────────────────────────────────────────────
+#  Saved Datasets Management
+# ────────────────────────────────────────────────────────────────────
+@app.route("/api/datasets/save", methods=["POST"])
+def save_dataset():
+    """Save the current dataset permanently with a name."""
+    df = _df()
+    if df is None:
+        return _err("No dataset loaded to save", 404)
+    
+    if not db_storage:
+        return _err("Dataset persistence is not enabled", 503)
+    
+    body = request.get_json(silent=True) or {}
+    dataset_name = body.get("name", "").strip()
+    description = body.get("description", "").strip()
+    tags = body.get("tags", [])
+    
+    if not dataset_name:
+        return _err("Dataset name is required")
+    
+    # Get original filename
+    store = _store()
+    original_filename = store.get("filename", store.get("original_filename", ""))
+    
+    try:
+        success = db_storage.save_dataset(
+            dataset_name=dataset_name,
+            df=df,
+            description=description,
+            original_filename=original_filename,
+            tags=tags
+        )
+        
+        if success:
+            logger.info("Saved dataset '%s' with %d rows, %d cols (session=%s)",
+                       dataset_name, len(df), len(df.columns), _sid())
+            return _ok({
+                "message": f"Dataset '{dataset_name}' saved successfully",
+                "dataset_name": dataset_name,
+                "rows": len(df),
+                "columns": len(df.columns)
+            })
+        else:
+            return _err("Failed to save dataset")
+    
+    except Exception as e:
+        logger.error("Error saving dataset: %s", e, exc_info=True)
+        return _err(f"Failed to save dataset: {str(e)}")
+
+
+@app.route("/api/datasets/list", methods=["GET"])
+def list_datasets():
+    """List all saved datasets."""
+    if not db_storage:
+        return _err("Dataset persistence is not enabled", 503)
+    
+    try:
+        search = request.args.get("search", None)
+        tags = request.args.getlist("tags")
+        
+        datasets = db_storage.list_datasets(search=search, tags=tags if tags else None)
+        
+        logger.info("Listed %d saved datasets (session=%s)", len(datasets), _sid())
+        return _ok({
+            "datasets": datasets,
+            "count": len(datasets)
+        })
+    
+    except Exception as e:
+        logger.error("Error listing datasets: %s", e, exc_info=True)
+        return _err(f"Failed to list datasets: {str(e)}")
+
+
+@app.route("/api/datasets/load/<dataset_name>", methods=["POST"])
+def load_dataset(dataset_name: str):
+    """Load a saved dataset into the current session."""
+    if not db_storage:
+        return _err("Dataset persistence is not enabled", 503)
+    
+    try:
+        df = db_storage.load_dataset(dataset_name)
+        
+        if df is None:
+            return _err(f"Dataset '{dataset_name}' not found", 404)
+        
+        # Store in session
+        store = _store()
+        store["df"] = df
+        store["original_df"] = df.copy()
+        store["filename"] = dataset_name
+        store["loaded_from_saved"] = True
+        
+        # Get dataset info
+        info = DataLoader.get_info(df)
+        preview = DataLoader.get_preview(df)
+        dataset_info = db_storage.get_dataset_info(dataset_name)
+        
+        logger.info("Loaded saved dataset '%s': %d rows x %d cols (session=%s)",
+                   dataset_name, len(df), len(df.columns), _sid())
+        
+        return _ok({
+            "message": f"Dataset '{dataset_name}' loaded successfully",
+            "filename": dataset_name,
+            "info": info,
+            "preview": preview,
+            "dataset_info": dataset_info
+        })
+    
+    except Exception as e:
+        logger.error("Error loading dataset '%s': %s", dataset_name, e, exc_info=True)
+        return _err(f"Failed to load dataset: {str(e)}")
+
+
+@app.route("/api/datasets/delete/<dataset_name>", methods=["DELETE"])
+def delete_dataset(dataset_name: str):
+    """Delete a saved dataset."""
+    if not db_storage:
+        return _err("Dataset persistence is not enabled", 503)
+    
+    try:
+        success = db_storage.delete_dataset(dataset_name)
+        
+        if success:
+            logger.info("Deleted dataset '%s' (session=%s)", dataset_name, _sid())
+            return _ok({
+                "message": f"Dataset '{dataset_name}' deleted successfully"
+            })
+        else:
+            return _err(f"Dataset '{dataset_name}' not found", 404)
+    
+    except Exception as e:
+        logger.error("Error deleting dataset '%s': %s", dataset_name, e, exc_info=True)
+        return _err(f"Failed to delete dataset: {str(e)}")
+
+
+@app.route("/api/datasets/info/<dataset_name>", methods=["GET"])
+def get_dataset_info(dataset_name: str):
+    """Get detailed information about a saved dataset."""
+    if not db_storage:
+        return _err("Dataset persistence is not enabled", 503)
+    
+    try:
+        info = db_storage.get_dataset_info(dataset_name)
+        
+        if info is None:
+            return _err(f"Dataset '{dataset_name}' not found", 404)
+        
+        return _ok(info)
+    
+    except Exception as e:
+        logger.error("Error getting dataset info for '%s': %s", dataset_name, e, exc_info=True)
+        return _err(f"Failed to get dataset info: {str(e)}")
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Data Preview & Info
+# ────────────────────────────────────────────────────────────────────
 @app.route("/api/data/preview")
 def data_preview():
     df = _df()

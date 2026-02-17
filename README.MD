@@ -350,3 +350,273 @@ AceML Studio's upload and storage system provides:
 - Robust error handling and user feedback
 - User-friendly progress and preview features
 - All features tested and verified
+
+---
+
+## 📚 Dataset Persistence: Database Options Analysis
+
+### Current Implementation: SQLite
+
+#### ✅ Test Results (February 15, 2026)
+- **Save/Load**: ✓ Working perfectly
+- **Schema Changes**: ✓ Successfully adds/removes columns dynamically
+- **Multiple Datasets**: ✓ Stores unlimited datasets
+- **Search/Filter**: ✓ Full-text search by name, description, tags
+- **Metadata**: ✓ Tracks rows, columns, dtypes, size, timestamps
+
+#### Advantages of SQLite
+1. **Zero Configuration**: No separate server required
+2. **File-Based**: Single `.db` file, easy backup/transfer
+3. **ACID Compliant**: Safe transactions, data integrity
+4. **Python Integration**: Built-in `sqlite3` module
+5. **Performance**: Fast for datasets up to several GB
+6. **Handles Schema Changes**: pandas `to_sql()` with `if_exists='replace'` works perfectly
+7. **Minimal Dependencies**: No external database installation needed
+
+#### Current Implementation Strategy
+```python
+# Each dataset gets its own table
+df.to_sql(table_name, conn, if_exists='replace', index=False)
+
+# Metadata stored in saved_datasets table
+# Schema changes handled by dropping/recreating tables
+```
+
+---
+
+### NoSQL Alternatives Analysis
+
+#### 1. MongoDB (Document Store)
+
+**Pros:**
+- Schema-less: No predefined schema required
+- Flexible documents: Each record can have different fields
+- Powerful query language
+- Horizontal scaling for very large datasets
+- GridFS for large binary storage
+
+**Cons:**
+- Requires MongoDB server installation
+- Additional dependency: `pymongo`
+- Overkill for tabular data (DataFrames are inherently tabular)
+- More complex setup and maintenance
+- Larger memory footprint
+- Not ideal for analytical queries on columns
+
+**Use Case Fit:** ❌ Poor - DataFrames are tabular, not document-oriented
+
+---
+
+#### 2. Redis (In-Memory Key-Value Store)
+
+**Pros:**
+- Extremely fast (in-memory)
+- Simple key-value operations
+- Supports complex data types (hashes, lists, sets)
+- Pub/Sub for real-time features
+
+**Cons:**
+- Primarily in-memory (limited by RAM)
+- Requires Redis server
+- Not designed for large datasets
+- Data persistence is secondary feature
+- Poor for complex queries
+- Not columnar - inefficient for DataFrame operations
+
+**Use Case Fit:** ❌ Poor - Designed for caching, not dataset persistence
+
+---
+
+#### 3. Apache Parquet Files (Columnar Format)
+
+**Pros:**
+- **EXCELLENT for DataFrames**: Native pandas support
+- Columnar storage: Very efficient for analytics
+- Compression: Smaller file sizes (often 10-50% of CSV)
+- Schema evolution: Can add/remove columns
+- Fast column reads: Only read columns you need
+- Preserves dtypes perfectly
+- No server required
+
+**Cons:**
+- No built-in metadata management (need separate index)
+- No transaction support
+- Manual file management required
+- Not a "database" - just file format
+
+**Implementation:**
+```python
+# Save
+df.to_parquet('dataset_name.parquet', compression='snappy')
+
+# Load
+df = pd.read_parquet('dataset_name.parquet')
+
+# Read specific columns only
+df = pd.read_parquet('dataset_name.parquet', columns=['A', 'B'])
+```
+
+**Use Case Fit:** ✅ **Excellent** - Purpose-built for DataFrames
+
+---
+
+#### 4. HDF5 (Hierarchical Data Format)
+
+**Pros:**
+- Designed for scientific/ML datasets
+- Fast I/O for large arrays
+- Hierarchical structure: Store multiple datasets
+- Compression support
+- Native pandas support: `HDFStore`
+
+**Cons:**
+- Binary format (not human-readable)
+- File locking issues on Windows
+- Can become corrupted if not closed properly
+- More complex than Parquet
+
+**Implementation:**
+```python
+# Save
+df.to_hdf('datasets.h5', key='dataset_name', mode='w')
+
+# Load
+df = pd.read_hdf('datasets.h5', key='dataset_name')
+```
+
+**Use Case Fit:** ✅ Good - But Parquet is simpler and more modern
+
+---
+
+#### 5. DuckDB (Analytical SQL Database)
+
+**Pros:**
+- **Optimized for analytics** on DataFrames
+- Columnar storage engine
+- Fast queries on large datasets
+- SQL interface
+- Zero-config like SQLite
+- Excellent pandas integration
+- Can query Parquet files directly
+
+**Cons:**
+- Relatively new (less mature than SQLite)
+- Additional dependency: `duckdb`
+
+**Implementation:**
+```python
+import duckdb
+
+# Save
+conn = duckdb.connect('datasets.duckdb')
+conn.execute("CREATE TABLE dataset_name AS SELECT * FROM df")
+
+# Load
+df = conn.execute("SELECT * FROM dataset_name").df()
+
+# Query
+df = conn.execute("SELECT A, B FROM dataset_name WHERE A > 10").df()
+```
+
+**Use Case Fit:** ✅ **Excellent** - Modern analytical database for DataFrames
+
+---
+
+### Recommendation Matrix
+
+| Database | Schema Flexibility | Performance | Setup Complexity | Use Case Fit |
+|----------|-------------------|-------------|------------------|--------------|
+| **SQLite** (Current) | ✅ Good | ✅ Good | ✅ Excellent | ✅ Good |
+| **MongoDB** | ✅ Excellent | ⚠️ Medium | ❌ Poor | ❌ Poor |
+| **Redis** | ✅ Excellent | ✅ Excellent | ❌ Poor | ❌ Poor |
+| **Parquet Files** | ✅ Excellent | ✅ Excellent | ✅ Excellent | ✅ **Excellent** |
+| **HDF5** | ✅ Good | ✅ Good | ⚠️ Medium | ✅ Good |
+| **DuckDB** | ✅ Excellent | ✅ Excellent | ✅ Excellent | ✅ **Excellent** |
+
+---
+
+### Final Recommendations
+
+#### Option 1: Keep SQLite (Current) ✅
+**Best for:** Simple deployments, small to medium datasets (<1GB)
+
+**Why it works:**
+- Already implemented and tested
+- Handles schema changes perfectly (test confirmed)
+- No additional dependencies
+- Easy to understand and maintain
+- Sufficient for most ML workflows
+
+#### Option 2: Hybrid - Parquet + SQLite Metadata ⭐ **RECOMMENDED**
+**Best for:** Large datasets, long-term storage, cloud deployments
+
+**Implementation:**
+```python
+# Save dataset as Parquet
+df.to_parquet(f'datasets/{dataset_name}.parquet', compression='snappy')
+
+# Save metadata in SQLite
+metadata = {
+  'dataset_name': dataset_name,
+  'file_path': f'datasets/{dataset_name}.parquet',
+  'rows': len(df),
+  'columns': len(df.columns),
+  'size_mb': file_size / (1024**2),
+  # ... other metadata
+}
+# Store in SQLite saved_datasets table
+```
+
+**Advantages:**
+- Parquet: Fast, efficient, schema-flexible, industry standard
+- SQLite: Manages metadata, search, indexing
+- Best of both worlds
+- Easy migration from current implementation
+
+#### Option 3: DuckDB for Analytics-Heavy Workflows
+**Best for:** Complex queries, data aggregation, multi-table joins
+
+**When to use:**
+- Need to run SQL queries on datasets
+- Joining multiple datasets
+- Complex filtering/aggregation before loading
+- Working with datasets too large for memory
+
+---
+
+### Migration Path (if needed)
+
+#### Phase 1: Add Parquet Support
+1. Install: `pip install pyarrow`
+2. Add method: `save_dataset_parquet()`
+3. Metadata still in SQLite
+4. Backward compatible with current implementation
+
+#### Phase 2: Make Parquet Default
+1. Update `save_dataset()` to use Parquet
+2. Keep SQLite for metadata only
+3. Migration script for existing datasets
+
+#### Phase 3: Optional DuckDB Layer
+1. For users needing SQL queries
+2. DuckDB can read Parquet directly
+3. No data duplication
+
+---
+
+### Conclusion
+
+**Current SQLite implementation is solid** ✅  
+The tests show it handles schema changes perfectly. The concern about "rigid schemas" doesn't apply because:
+- We use `if_exists='replace'` strategy
+- Each dataset gets its own table
+- Pandas handles all type conversions
+
+**For improved performance on large datasets:**  
+Consider **Parquet + SQLite hybrid** approach:
+- Parquet for data storage (10x faster, smaller files)
+- SQLite for metadata/search
+- Minimal code changes required
+- Industry best practice for data science workflows
+
+**No need for MongoDB/Redis** - they're not designed for tabular data and add unnecessary complexity.
