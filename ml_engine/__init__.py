@@ -10,6 +10,7 @@ from .model_training import ModelTrainer
 from .evaluation import ModelEvaluator
 from .tuning import HyperparameterTuner
 from .experiment_tracker import ExperimentTracker
+from .workflow_engine import WorkflowEngine
 
 __all__ = [
     "DataLoader",
@@ -22,4 +23,5 @@ __all__ = [
     "ModelEvaluator",
     "HyperparameterTuner",
     "ExperimentTracker",
+    "WorkflowEngine",
 ]

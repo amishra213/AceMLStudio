@@ -202,6 +202,7 @@ function navigateTo(section) {
         dashboard: "Dashboard", upload: "Upload Data", quality: "Data Quality",
         cleaning: "Data Cleaning", features: "Feature Engineering",
         transform: "Transformations", dimensions: "Reduce Dimensions",
+        workflow: "AI Workflow",
         training: "Train Models", evaluation: "Evaluation", visualize: "Visualizations",
         tuning: "Hyperparameter Tuning", experiments: "Experiments", ai: "AI Insights",
     };
@@ -287,6 +288,15 @@ function populateColumnSelects() {
         populateSelect(document.getElementById("scaleCols"), d.numeric);
         populateSelect(document.getElementById("encodeCols"), d.categorical);
         populateSelect(document.getElementById("convertCols"), d.columns);
+
+        // Workflow target
+        const wfTs = document.getElementById("wfTarget");
+        if (wfTs) {
+            wfTs.innerHTML = '<option value="">— Select target —</option>';
+            d.columns.forEach(c => {
+                wfTs.innerHTML += `<option value="${c}">${c}</option>`;
+            });
+        }
 
         // Training model select
         updateModelCheckboxes();
@@ -2635,6 +2645,463 @@ document.getElementById("vizDownloadBtn")?.addEventListener("click", () => {
     link.click();
     showToast("Success", "Downloading visualization", "success");
 });
+
+// ════════════════════════════════════════════════════════
+//  AI WORKFLOW  (bi-directional navigation)
+// ════════════════════════════════════════════════════════
+
+let workflowPolling = null;
+
+function getWorkflowConfig() {
+    const target = document.getElementById("wfTarget").value;
+    const task = document.getElementById("wfTask").value;
+    const maxIterations = parseInt(document.getElementById("wfMaxIterations").value);
+    const objectives = document.getElementById("wfObjectives").value.trim();
+    const mode = document.querySelector('input[name="wfMode"]:checked')?.value || "auto";
+    const enabledSteps = Array.from(document.querySelectorAll('.workflow-step-toggles input:checked'))
+        .map(el => el.value);
+
+    return { target, task, max_iterations: maxIterations, objectives, auto_approve: mode === "auto", enabled_steps: enabledSteps };
+}
+
+async function startWorkflow() {
+    const config = getWorkflowConfig();
+    if (!config.target) {
+        showToast("Error", "Please select a target column", "error");
+        return;
+    }
+    if (config.enabled_steps.length === 0) {
+        showToast("Error", "Please enable at least one pipeline step", "error");
+        return;
+    }
+
+    document.getElementById("btnStartWorkflow").disabled = true;
+
+    if (config.auto_approve) {
+        // Run all in one call
+        showLoading("Running AI Workflow — the LLM is planning and executing iteratively…");
+        try {
+            const res = await API.post("/api/workflow/run-all", config);
+            hideLoading();
+            if (res.status === "ok") {
+                renderWorkflowState(res.data);
+                showToast("Success", "AI Workflow completed!", "success");
+            } else {
+                showToast("Error", res.message || "Workflow failed", "error");
+                document.getElementById("btnStartWorkflow").disabled = false;
+            }
+        } catch (e) {
+            hideLoading();
+            showToast("Error", "Workflow failed: " + e, "error");
+            document.getElementById("btnStartWorkflow").disabled = false;
+        }
+    } else {
+        // Step-by-step mode — start and let user control
+        showLoading("Planning workflow iteration…");
+        try {
+            const res = await API.post("/api/workflow/start", config);
+            hideLoading();
+            if (res.status === "ok") {
+                renderWorkflowState(res.data);
+                showToast("Info", "Workflow planned — use controls to proceed step by step", "info");
+            } else {
+                showToast("Error", res.message || "Workflow start failed", "error");
+                document.getElementById("btnStartWorkflow").disabled = false;
+            }
+        } catch (e) {
+            hideLoading();
+            showToast("Error", "Workflow start failed: " + e, "error");
+            document.getElementById("btnStartWorkflow").disabled = false;
+        }
+    }
+}
+
+async function workflowNextStep() {
+    showLoading("Executing next step…");
+    try {
+        const res = await API.post("/api/workflow/step");
+        hideLoading();
+        if (res.status === "ok") renderWorkflowState(res.data);
+        else showToast("Error", res.message, "error");
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+async function workflowRunIteration() {
+    showLoading("Running remaining steps…");
+    try {
+        const res = await API.post("/api/workflow/run-iteration");
+        hideLoading();
+        if (res.status === "ok") renderWorkflowState(res.data);
+        else showToast("Error", res.message, "error");
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+async function workflowContinue() {
+    showLoading("Planning next iteration…");
+    try {
+        const res = await API.post("/api/workflow/continue");
+        hideLoading();
+        if (res.status === "ok") renderWorkflowState(res.data);
+        else showToast("Error", res.message, "error");
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+async function workflowApprove() {
+    try {
+        const res = await API.post("/api/workflow/approve");
+        if (res.status === "ok") renderWorkflowState(res.data);
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+async function workflowAbort() {
+    try {
+        const res = await API.post("/api/workflow/abort");
+        if (res.status === "ok") {
+            renderWorkflowState(res.data);
+            showToast("Info", "Workflow aborted", "info");
+        }
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+async function workflowReset() {
+    try {
+        await API.post("/api/workflow/reset");
+        document.getElementById("workflowProgressCard").classList.add("d-none");
+        document.getElementById("workflowLLMCard").classList.add("d-none");
+        document.getElementById("workflowConfigCard").classList.remove("d-none");
+        document.getElementById("btnStartWorkflow").disabled = false;
+        document.getElementById("wfDeferredQueue").classList.add("d-none");
+        showToast("Info", "Workflow reset — ready for a new run", "info");
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+// ── Bi-directional step actions ──────────────────────────
+async function workflowRunStepById(stepId) {
+    showLoading("Executing step…");
+    try {
+        const res = await API.post("/api/workflow/run-step-by-id", { step_id: stepId });
+        hideLoading();
+        if (res.status === "ok") renderWorkflowState(res.data);
+        else showToast("Error", res.message, "error");
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+async function workflowDeferStep(stepId) {
+    try {
+        const res = await API.post("/api/workflow/defer-step", { step_id: stepId });
+        if (res.status === "ok") {
+            renderWorkflowState(res.data);
+            showToast("Info", "Step deferred — you can recall it later", "info");
+        } else showToast("Error", res.message, "error");
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+async function workflowRecallStep(stepId) {
+    try {
+        const res = await API.post("/api/workflow/recall-step", { step_id: stepId });
+        if (res.status === "ok") {
+            renderWorkflowState(res.data);
+            showToast("Info", "Step recalled to active queue", "info");
+        } else showToast("Error", res.message, "error");
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+async function workflowSkipStep(stepId) {
+    try {
+        const res = await API.post("/api/workflow/skip-step", { step_id: stepId });
+        if (res.status === "ok") renderWorkflowState(res.data);
+        else showToast("Error", res.message, "error");
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+async function workflowRerunStep(stepId) {
+    showLoading("Re-running step (restoring previous data state)…");
+    try {
+        const res = await API.post("/api/workflow/rerun-step", { step_id: stepId });
+        hideLoading();
+        if (res.status === "ok") {
+            renderWorkflowState(res.data);
+            showToast("Info", "Step re-run complete — subsequent steps invalidated", "info");
+        } else showToast("Error", res.message, "error");
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+async function workflowReorderStep(stepId, direction) {
+    try {
+        const res = await API.post("/api/workflow/reorder-steps", { step_id: stepId, direction });
+        if (res.status === "ok") renderWorkflowState(res.data);
+        else showToast("Error", res.message, "error");
+    } catch (e) { showToast("Error", "" + e, "error"); }
+}
+
+async function workflowFinishIteration() {
+    showLoading("Finishing iteration (evaluating results)…");
+    try {
+        const res = await API.post("/api/workflow/finish-iteration");
+        hideLoading();
+        if (res.status === "ok") {
+            renderWorkflowState(res.data);
+            showToast("Info", "Iteration finished — deferred steps skipped", "info");
+        } else showToast("Error", res.message, "error");
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+// ── State rendering ──────────────────────────────────────
+function renderWorkflowState(state) {
+    if (!state || state.status === "none") return;
+
+    // Show progress card, hide config card
+    document.getElementById("workflowConfigCard").classList.add("d-none");
+    document.getElementById("workflowProgressCard").classList.remove("d-none");
+    document.getElementById("workflowLLMCard").classList.remove("d-none");
+
+    // Status badge
+    const badge = document.getElementById("wfStatusBadge");
+    const statusColors = {
+        pending: "bg-secondary", planning: "bg-info", running: "bg-primary",
+        awaiting_approval: "bg-warning text-dark", paused: "bg-secondary",
+        completed: "bg-success", failed: "bg-danger", aborted: "bg-danger",
+    };
+    badge.className = `badge ms-2 ${statusColors[state.status] || "bg-secondary"}`;
+    badge.textContent = state.status.replace("_", " ").toUpperCase();
+
+    // Metrics
+    document.getElementById("wfInitialQuality").textContent = state.initial_quality_score + "/100";
+    document.getElementById("wfCurrentQuality").textContent = state.current_quality_score + "/100";
+    document.getElementById("wfIteration").textContent = `${state.current_iteration} / ${state.max_iterations}`;
+    const shape = state.current_shape || {};
+    document.getElementById("wfShape").textContent = shape.rows ? `${shape.rows.toLocaleString()} × ${shape.columns}` : "—";
+
+    // Button visibility
+    const isRunning = state.status === "running";
+    const isAwaiting = state.status === "awaiting_approval";
+    const isDone = ["completed", "failed", "aborted"].includes(state.status);
+
+    document.getElementById("btnWfNextStep").classList.toggle("d-none", !isRunning);
+    document.getElementById("btnWfRunIteration").classList.toggle("d-none", !isRunning);
+    document.getElementById("btnWfAbort").classList.toggle("d-none", isDone);
+    document.getElementById("btnWfReset").classList.toggle("d-none", !isDone);
+    document.getElementById("btnWfApprove").classList.toggle("d-none", !isAwaiting);
+
+    // Show continue button when iteration is done but workflow should continue
+    const lastIter = state.iterations?.length > 0 ? state.iterations[state.iterations.length - 1] : null;
+    const showContinue = lastIter && lastIter.completed_at && lastIter.should_continue && !isDone;
+    document.getElementById("btnWfContinue").classList.toggle("d-none", !showContinue);
+
+    // Show "Finish Iteration" when there are deferred steps and workflow is running
+    const hasDeferred = lastIter && lastIter.deferred_steps && lastIter.deferred_steps.length > 0;
+    document.getElementById("btnWfFinishIteration").classList.toggle("d-none", !(isRunning && hasDeferred));
+
+    // Render iteration timeline
+    renderWorkflowTimeline(state);
+
+    // Render deferred steps queue
+    renderWorkflowDeferred(state);
+
+    // Render LLM content
+    renderWorkflowLLM(state);
+}
+
+function renderWorkflowTimeline(state) {
+    const container = document.getElementById("wfIterationTimeline");
+    if (!state.iterations || state.iterations.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center py-3">Workflow not started yet</div>';
+        return;
+    }
+
+    const isRunning = state.status === "running";
+    let html = "";
+
+    state.iterations.forEach((iter, iterIdx) => {
+        const isCurrentIter = iterIdx === state.iterations.length - 1;
+        html += `<div class="workflow-iteration ${isCurrentIter ? "current" : ""}">`;
+        html += `<div class="workflow-iteration-header">`;
+        html += `<h6 class="mb-0"><i class="fas fa-layer-group me-1"></i>Iteration ${iter.iteration_number}</h6>`;
+        if (iter.improvement_summary) {
+            html += `<small class="text-muted">${iter.improvement_summary.substring(0, 120)}</small>`;
+        }
+        html += `</div>`;
+
+        // Steps
+        html += `<div class="workflow-steps-list">`;
+        (iter.steps || []).forEach((step, stepIdx) => {
+            html += buildStepItem(step, stepIdx, iter.steps.length, isCurrentIter && isRunning);
+        });
+        html += `</div>`;
+
+        // Iteration evaluation
+        if (iter.llm_evaluation) {
+            html += `<div class="workflow-iter-evaluation">`;
+            html += `<small class="fw-bold"><i class="fas fa-robot me-1"></i>AI Evaluation:</small> `;
+            html += `<small>${iter.llm_evaluation.substring(0, 300)}</small>`;
+            html += `</div>`;
+        }
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function buildStepItem(step, stepIdx, totalSteps, allowActions) {
+    const iconMap = {
+        data_analysis: "fa-search-plus",
+        data_cleaning: "fa-broom",
+        feature_engineering: "fa-cogs",
+        transformations: "fa-exchange-alt",
+        dimensionality_reduction: "fa-compress-arrows-alt",
+        evaluation: "fa-robot",
+    };
+    const statusIcon = {
+        pending: "fa-circle text-muted",
+        running: "fa-spinner fa-spin text-primary",
+        completed: "fa-check-circle text-success",
+        skipped: "fa-minus-circle text-secondary",
+        deferred: "fa-clock text-warning",
+        failed: "fa-times-circle text-danger",
+    };
+    const icon = iconMap[step.step_type] || "fa-circle";
+    const sIcon = statusIcon[step.status] || "fa-circle";
+    const duration = step.finished_at && step.started_at ? ((step.finished_at - step.started_at).toFixed(1) + "s") : "";
+    const rerunBadge = step.run_count > 1 ? `<span class="badge bg-info ms-1" title="Re-run count">×${step.run_count}</span>` : "";
+
+    let html = `<div class="workflow-step-item ${step.status}">`;
+    html += `  <div class="workflow-step-icon"><i class="fas ${icon}"></i></div>`;
+    html += `  <div class="workflow-step-body">`;
+    html += `    <div class="workflow-step-title">${step.title} <i class="fas ${sIcon} ms-1"></i>${rerunBadge}`;
+    if (duration) html += ` <small class="text-muted ms-1">(${duration})</small>`;
+    html += `    </div>`;
+    if (step.description) html += `<div class="workflow-step-desc">${step.description}</div>`;
+    if (step.result_summary && step.status === "completed") {
+        html += `<div class="workflow-step-result">${step.result_summary.substring(0, 200)}</div>`;
+    }
+    if (step.error) html += `<div class="workflow-step-error text-danger">${step.error}</div>`;
+
+    // Quality delta
+    const qBefore = step.metrics_before?.quality_score;
+    const qAfter = step.metrics_after?.quality_score;
+    if (qBefore !== undefined && qAfter !== undefined && step.status === "completed") {
+        const delta = qAfter - qBefore;
+        const deltaClass = delta > 0 ? "text-success" : delta < 0 ? "text-danger" : "text-muted";
+        html += `<small class="${deltaClass}">Quality: ${qBefore} → ${qAfter} (${delta > 0 ? "+" : ""}${delta})</small>`;
+    }
+
+    // ── Per-step action buttons (only in current iteration when running) ──
+    if (allowActions && step.step_type !== "evaluation") {
+        html += `<div class="workflow-step-actions mt-1">`;
+
+        if (step.status === "pending") {
+            // Pending: Run, Defer, Skip, Move Up, Move Down
+            html += `<button class="btn btn-xs btn-outline-success" onclick="workflowRunStepById('${step.id}')" title="Run this step now"><i class="fas fa-play"></i> Run</button>`;
+            html += `<button class="btn btn-xs btn-outline-warning" onclick="workflowDeferStep('${step.id}')" title="Defer — skip for now, come back later"><i class="fas fa-clock"></i> Defer</button>`;
+            html += `<button class="btn btn-xs btn-outline-secondary" onclick="workflowSkipStep('${step.id}')" title="Permanently skip this step"><i class="fas fa-ban"></i> Skip</button>`;
+            if (stepIdx > 0) {
+                html += `<button class="btn btn-xs btn-outline-primary" onclick="workflowReorderStep('${step.id}','up')" title="Move earlier in queue"><i class="fas fa-arrow-up"></i></button>`;
+            }
+            if (stepIdx < totalSteps - 2) { // -2 to not go past evaluation
+                html += `<button class="btn btn-xs btn-outline-primary" onclick="workflowReorderStep('${step.id}','down')" title="Move later in queue"><i class="fas fa-arrow-down"></i></button>`;
+            }
+        } else if (step.status === "completed") {
+            // Completed: Re-run
+            html += `<button class="btn btn-xs btn-outline-info" onclick="workflowRerunStep('${step.id}')" title="Re-run this step (restores data to pre-step state)"><i class="fas fa-redo"></i> Re-run</button>`;
+        } else if (step.status === "failed") {
+            // Failed: Re-run
+            html += `<button class="btn btn-xs btn-outline-warning" onclick="workflowRerunStep('${step.id}')" title="Retry this step"><i class="fas fa-redo"></i> Retry</button>`;
+        }
+
+        html += `</div>`;
+    }
+
+    html += `  </div>`;
+    html += `</div>`;
+    return html;
+}
+
+function renderWorkflowDeferred(state) {
+    const container = document.getElementById("wfDeferredQueue");
+    const list = document.getElementById("wfDeferredList");
+    const lastIter = state.iterations?.length > 0 ? state.iterations[state.iterations.length - 1] : null;
+    const deferred = lastIter?.deferred_steps || [];
+    const isRunning = state.status === "running";
+
+    if (deferred.length === 0) {
+        container.classList.add("d-none");
+        return;
+    }
+
+    container.classList.remove("d-none");
+
+    let html = "";
+    deferred.forEach(step => {
+        const iconMap = {
+            data_analysis: "fa-search-plus", data_cleaning: "fa-broom",
+            feature_engineering: "fa-cogs", transformations: "fa-exchange-alt",
+            dimensionality_reduction: "fa-compress-arrows-alt", evaluation: "fa-robot",
+        };
+        const icon = iconMap[step.step_type] || "fa-circle";
+
+        html += `<div class="workflow-step-item deferred">`;
+        html += `  <div class="workflow-step-icon deferred-icon"><i class="fas ${icon}"></i></div>`;
+        html += `  <div class="workflow-step-body">`;
+        html += `    <div class="workflow-step-title">${step.title} <i class="fas fa-clock text-warning ms-1"></i>`;
+        html += `      <span class="badge bg-warning text-dark ms-1">Deferred</span>`;
+        html += `    </div>`;
+        if (step.description) html += `<div class="workflow-step-desc">${step.description}</div>`;
+
+        if (isRunning) {
+            html += `<div class="workflow-step-actions mt-1">`;
+            html += `<button class="btn btn-xs btn-outline-info" onclick="workflowRecallStep('${step.id}')" title="Move back to active queue"><i class="fas fa-undo"></i> Recall</button>`;
+            html += `<button class="btn btn-xs btn-outline-success" onclick="workflowRunStepById('${step.id}')" title="Run this step now"><i class="fas fa-play"></i> Run Now</button>`;
+            html += `<button class="btn btn-xs btn-outline-secondary" onclick="workflowSkipStep('${step.id}')" title="Permanently skip"><i class="fas fa-ban"></i> Skip</button>`;
+            html += `</div>`;
+        }
+
+        html += `  </div>`;
+        html += `</div>`;
+    });
+
+    list.innerHTML = html;
+}
+
+function renderWorkflowLLM(state) {
+    const container = document.getElementById("wfLLMContent");
+    if (!state.iterations || state.iterations.length === 0) {
+        container.innerHTML = '<div class="text-muted">No AI analysis yet</div>';
+        return;
+    }
+
+    const lastIter = state.iterations[state.iterations.length - 1];
+    let html = "";
+
+    if (lastIter.llm_plan) {
+        html += `<div class="mb-3"><h6><i class="fas fa-clipboard-list me-1"></i>Iteration Plan</h6>`;
+        html += `<div class="workflow-llm-text">${renderMarkdown(lastIter.llm_plan)}</div></div>`;
+    }
+
+    if (lastIter.llm_evaluation) {
+        html += `<div class="mb-3"><h6><i class="fas fa-chart-line me-1"></i>Evaluation</h6>`;
+        html += `<div class="workflow-llm-text">${renderMarkdown(lastIter.llm_evaluation)}</div></div>`;
+    }
+
+    if (lastIter.improvement_summary) {
+        html += `<div class="mb-2"><h6><i class="fas fa-arrow-up me-1"></i>Improvement Summary</h6>`;
+        html += `<div class="workflow-llm-text">${renderMarkdown(lastIter.improvement_summary)}</div></div>`;
+    }
+
+    // Deferred notice
+    const deferred = lastIter.deferred_steps || [];
+    if (deferred.length > 0 && state.status === "running") {
+        html += `<div class="alert alert-warning py-2 mb-2"><i class="fas fa-clock me-1"></i>${deferred.length} step(s) deferred — recall them or click <strong>Finish Iteration</strong> to proceed.</div>`;
+    }
+
+    if (lastIter.should_continue && state.status !== "completed") {
+        html += `<div class="alert alert-info py-2 mb-0"><i class="fas fa-info-circle me-1"></i>The AI recommends another iteration to further improve data quality.</div>`;
+    } else if (state.status === "completed") {
+        html += `<div class="alert alert-success py-2 mb-0"><i class="fas fa-check-circle me-1"></i>Workflow complete! Your data is prepared for model training.</div>`;
+    }
+
+    container.innerHTML = html || '<div class="text-muted">Waiting for AI analysis…</div>';
+}
 
 // ════════════════════════════════════════════════════════
 //  INIT

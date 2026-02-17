@@ -37,6 +37,7 @@ from ml_engine.tuning import HyperparameterTuner
 from ml_engine.experiment_tracker import ExperimentTracker
 from ml_engine.visualizer import DataVisualizer
 from ml_engine.db_storage import DataFrameDBStorage
+from ml_engine.workflow_engine import WorkflowEngine
 from llm_engine.analyzer import LLMAnalyzer
 
 logger = get_logger("app")
@@ -52,12 +53,12 @@ class PandasJSONProvider(DefaultJSONProvider):
         """Convert pandas/numpy types to JSON-serializable types."""
         if pd.isna(obj):  # Handles pd.NA, np.nan, pd.NaT, None
             return None
-        if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
-            return int(obj)
-        if isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
-            if np.isnan(obj) or np.isinf(obj):
+        if hasattr(obj, 'item'):
+            # numpy scalar — convert via .item() which gives a native Python type
+            val = obj.item()
+            if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
                 return None
-            return float(obj)
+            return val
         if isinstance(obj, (np.bool_, bool)):
             return bool(obj)
         if isinstance(obj, (pd.Timestamp, np.datetime64)):
@@ -93,6 +94,9 @@ logger.info("Upload config: max_size=%d MB, chunk_size=%d MB, threshold=%d MB, u
 # Each entry: {"df": DataFrame, "original_df": DataFrame, "models": {}, "target": str, "task": str}
 DATA_STORE: dict[str, dict] = {}
 tracker = ExperimentTracker()
+
+# Active workflow engines per session
+WORKFLOW_STORE: dict[str, WorkflowEngine] = {}
 
 
 def _sid() -> str:
@@ -1504,6 +1508,349 @@ def llm_ask():
 
 
 # ────────────────────────────────────────────────────────────────────
+#  Iterative Workflow  –  LLM-driven data preparation pipeline
+# ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/workflow/start", methods=["POST"])
+def workflow_start():
+    """Start a new iterative workflow.
+    Body: { target, task, objectives?, max_iterations?, auto_approve?, enabled_steps? }
+    """
+    try:
+        df = _df()
+        if df is None:
+            return _err("No dataset loaded", 404)
+
+        store = _store()
+        body = request.get_json(silent=True) or {}
+
+        target = body.get("target") or store.get("target")
+        task = body.get("task") or store.get("task", "classification")
+        objectives = body.get("objectives", "")
+        max_iterations = int(body.get("max_iterations", 5))
+        auto_approve = body.get("auto_approve", True)
+        enabled_steps = body.get("enabled_steps")
+
+        if not target or target not in df.columns:
+            return _err("Valid target column is required")
+
+        # Save target/task in session
+        store["target"] = target
+        store["task"] = task
+
+        sid = _sid()
+        logger.info("Workflow start: session=%s, target=%s, task=%s, objectives='%s'",
+                     sid, target, task, objectives[:100])
+
+        engine = WorkflowEngine(
+            df=df,
+            target_column=target,
+            task_type=task,
+            objectives=objectives,
+            max_iterations=max_iterations,
+            auto_approve=auto_approve,
+            enabled_steps=enabled_steps,
+        )
+
+        WORKFLOW_STORE[sid] = engine
+        state = engine.start()
+        return _ok(state)
+
+    except Exception as e:
+        logger.error("Workflow start failed: %s", e, exc_info=True)
+        return _err(f"Workflow start failed: {e}", 500)
+
+
+@app.route("/api/workflow/status")
+def workflow_status():
+    """Get current workflow state."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _ok({"status": "none", "message": "No active workflow"})
+    return _ok(engine.get_state())
+
+
+@app.route("/api/workflow/step", methods=["POST"])
+def workflow_run_step():
+    """Execute the next pending step in the current iteration."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    try:
+        state = engine.run_next_step()
+        # Sync the working DataFrame back to session
+        _store()["df"] = engine.get_dataframe()
+        return _ok(state)
+    except Exception as e:
+        logger.error("Workflow step failed: %s", e, exc_info=True)
+        return _err(f"Step execution failed: {e}", 500)
+
+
+@app.route("/api/workflow/run-iteration", methods=["POST"])
+def workflow_run_iteration():
+    """Execute all pending steps in the current iteration."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    try:
+        state = engine.run_full_iteration()
+        _store()["df"] = engine.get_dataframe()
+        return _ok(state)
+    except Exception as e:
+        logger.error("Workflow iteration failed: %s", e, exc_info=True)
+        return _err(f"Iteration failed: {e}", 500)
+
+
+@app.route("/api/workflow/continue", methods=["POST"])
+def workflow_continue():
+    """Continue to the next iteration (plan + start)."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    try:
+        state = engine.continue_workflow()
+        return _ok(state)
+    except Exception as e:
+        logger.error("Workflow continue failed: %s", e, exc_info=True)
+        return _err(f"Continue failed: {e}", 500)
+
+
+@app.route("/api/workflow/run-all", methods=["POST"])
+def workflow_run_all():
+    """Run the entire workflow end-to-end (all iterations)."""
+    try:
+        df = _df()
+        if df is None:
+            return _err("No dataset loaded", 404)
+
+        store = _store()
+        body = request.get_json(silent=True) or {}
+
+        target = body.get("target") or store.get("target")
+        task = body.get("task") or store.get("task", "classification")
+        objectives = body.get("objectives", "")
+        max_iterations = int(body.get("max_iterations", 5))
+        enabled_steps = body.get("enabled_steps")
+
+        if not target or target not in df.columns:
+            return _err("Valid target column is required")
+
+        store["target"] = target
+        store["task"] = task
+
+        sid = _sid()
+        logger.info("Workflow run-all: session=%s, target=%s, max_iter=%d",
+                     sid, target, max_iterations)
+
+        engine = WorkflowEngine(
+            df=df,
+            target_column=target,
+            task_type=task,
+            objectives=objectives,
+            max_iterations=max_iterations,
+            auto_approve=True,
+            enabled_steps=enabled_steps,
+        )
+
+        WORKFLOW_STORE[sid] = engine
+        state = engine.run_all()
+        _store()["df"] = engine.get_dataframe()
+
+        logger.info("Workflow run-all complete: status=%s, iterations=%d",
+                     state.get("status"), state.get("current_iteration", 0))
+        return _ok(state)
+
+    except Exception as e:
+        logger.error("Workflow run-all failed: %s", e, exc_info=True)
+        return _err(f"Workflow failed: {e}", 500)
+
+
+@app.route("/api/workflow/approve", methods=["POST"])
+def workflow_approve():
+    """Approve the current iteration plan and resume."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+    return _ok(engine.approve_iteration())
+
+
+@app.route("/api/workflow/abort", methods=["POST"])
+def workflow_abort():
+    """Abort the current workflow."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    state = engine.abort()
+    logger.info("Workflow aborted: session=%s", sid)
+    return _ok(state)
+
+
+@app.route("/api/workflow/skip-step", methods=["POST"])
+def workflow_skip_step():
+    """Skip a specific step."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    body = request.get_json(silent=True) or {}
+    step_id = body.get("step_id")
+    if not step_id:
+        return _err("step_id is required")
+
+    return _ok(engine.skip_step(step_id))
+
+
+@app.route("/api/workflow/defer-step", methods=["POST"])
+def workflow_defer_step():
+    """Defer a pending step — move it to the deferred queue for later."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    body = request.get_json(silent=True) or {}
+    step_id = body.get("step_id")
+    if not step_id:
+        return _err("step_id is required")
+
+    return _ok(engine.defer_step(step_id))
+
+
+@app.route("/api/workflow/recall-step", methods=["POST"])
+def workflow_recall_step():
+    """Move a deferred step back into the active queue."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    body = request.get_json(silent=True) or {}
+    step_id = body.get("step_id")
+    position = body.get("position")  # optional insert position
+    if not step_id:
+        return _err("step_id is required")
+
+    return _ok(engine.recall_step(step_id, position))
+
+
+@app.route("/api/workflow/run-step-by-id", methods=["POST"])
+def workflow_run_step_by_id():
+    """Execute a specific step by its ID (any status — pending, deferred, completed, failed)."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    body = request.get_json(silent=True) or {}
+    step_id = body.get("step_id")
+    if not step_id:
+        return _err("step_id is required")
+
+    try:
+        state = engine.run_step_by_id(step_id)
+        _store()["df"] = engine.get_dataframe()
+        return _ok(state)
+    except Exception as e:
+        logger.error("Workflow run-step-by-id failed: %s", e, exc_info=True)
+        return _err(f"Step execution failed: {e}", 500)
+
+
+@app.route("/api/workflow/reorder-steps", methods=["POST"])
+def workflow_reorder_steps():
+    """Move a pending step up or down in the active queue.
+    Body: { step_id, direction: 'up' | 'down' }"""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    body = request.get_json(silent=True) or {}
+    step_id = body.get("step_id")
+    direction = body.get("direction", "up")
+    if not step_id:
+        return _err("step_id is required")
+    if direction not in ("up", "down"):
+        return _err("direction must be 'up' or 'down'")
+
+    return _ok(engine.reorder_steps(step_id, direction))
+
+
+@app.route("/api/workflow/rerun-step", methods=["POST"])
+def workflow_rerun_step():
+    """Re-run a completed or failed step. Restores DataFrame to pre-step state."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    body = request.get_json(silent=True) or {}
+    step_id = body.get("step_id")
+    if not step_id:
+        return _err("step_id is required")
+
+    try:
+        state = engine.rerun_step(step_id)
+        _store()["df"] = engine.get_dataframe()
+        return _ok(state)
+    except Exception as e:
+        logger.error("Workflow rerun-step failed: %s", e, exc_info=True)
+        return _err(f"Step re-run failed: {e}", 500)
+
+
+@app.route("/api/workflow/finish-iteration", methods=["POST"])
+def workflow_finish_iteration():
+    """Force-finish the current iteration even if deferred steps remain.
+    Deferred steps are left as-is (skipped for this iteration)."""
+    sid = _sid()
+    engine = WORKFLOW_STORE.get(sid)
+    if not engine:
+        return _err("No active workflow", 404)
+
+    try:
+        import time as _time
+        iteration_dict = engine._current_iteration()
+        if not iteration_dict:
+            return _err("No active iteration")
+
+        # Mark any remaining deferred steps as skipped for this iteration
+        for s in iteration_dict.get("deferred_steps", []):
+            s["status"] = "skipped"
+            iteration_dict["steps"].append(s)
+        iteration_dict["deferred_steps"] = []
+
+        if not iteration_dict.get("completed_at"):
+            iteration_dict["completed_at"] = _time.time()
+        engine._evaluate_iteration(iteration_dict)
+        engine.state.updated_at = _time.time()
+
+        _store()["df"] = engine.get_dataframe()
+        return _ok(engine.get_state())
+    except Exception as e:
+        logger.error("Workflow finish-iteration failed: %s", e, exc_info=True)
+        return _err(f"Finish iteration failed: {e}", 500)
+
+
+@app.route("/api/workflow/reset", methods=["POST"])
+def workflow_reset():
+    """Clear the active workflow for this session."""
+    sid = _sid()
+    WORKFLOW_STORE.pop(sid, None)
+    logger.info("Workflow reset: session=%s", sid)
+    return _ok(message="Workflow reset")
+
+
+# ────────────────────────────────────────────────────────────────────
 #  Chat  –  multi-turn conversational AI with rich pipeline context
 # ────────────────────────────────────────────────────────────────────
 # Per-session chat history  { sid: [ {role, content}, ... ] }
@@ -1623,6 +1970,7 @@ def reset_session():
     sid = _sid()
     DATA_STORE.pop(sid, None)
     CHAT_HISTORY.pop(sid, None)
+    WORKFLOW_STORE.pop(sid, None)
     logger.info("Session reset: %s", sid)
     return _ok(message="Session reset")
 

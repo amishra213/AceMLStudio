@@ -80,6 +80,7 @@ body {
     letter-spacing: -0.02em;
     background: linear-gradient(135deg, var(--accent), #a78bfa);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -1308,4 +1309,190 @@ body {
     color: var(--accent);
     margin-left: 8px;
     font-weight: 500;
+}
+
+/* ════════════════════════════════════════════════════════
+   AI Workflow Styles
+   ════════════════════════════════════════════════════════ */
+
+.workflow-metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: center;
+}
+.workflow-metric-card .metric-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.workflow-metric-card .metric-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Iteration block */
+.workflow-iteration {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+}
+.workflow-iteration.current {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.15);
+}
+.workflow-iteration-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Step list */
+.workflow-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.workflow-step-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.workflow-step-item.running {
+    background: rgba(99, 102, 241, 0.08);
+    border-color: var(--accent);
+}
+.workflow-step-item.completed {
+    border-color: rgba(34, 197, 94, 0.2);
+}
+.workflow-step-item.failed {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.05);
+}
+.workflow-step-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--accent);
+    flex-shrink: 0;
+    font-size: 0.8rem;
+}
+.workflow-step-body {
+    flex: 1;
+    min-width: 0;
+}
+.workflow-step-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+.workflow-step-desc {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+.workflow-step-result {
+    font-size: 0.75rem;
+    color: var(--success);
+    margin-top: 4px;
+    background: rgba(34, 197, 94, 0.06);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.workflow-step-error {
+    font-size: 0.75rem;
+    margin-top: 4px;
+}
+
+/* Deferred step styling */
+.workflow-step-item.deferred {
+    border-color: rgba(234, 179, 8, 0.3);
+    background: rgba(234, 179, 8, 0.05);
+    opacity: 0.85;
+}
+.workflow-step-icon.deferred-icon {
+    background: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+}
+
+/* Per-step action buttons */
+.workflow-step-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+.btn-xs {
+    font-size: 0.68rem;
+    padding: 1px 6px;
+    line-height: 1.6;
+    border-radius: 4px;
+}
+.btn-xs i {
+    font-size: 0.62rem;
+}
+
+/* Deferred queue section */
+.workflow-deferred-queue {
+    background: rgba(234, 179, 8, 0.04);
+    border: 1px dashed rgba(234, 179, 8, 0.35);
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+.workflow-deferred-queue h6 {
+    color: #eab308;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+/* Iteration evaluation */
+.workflow-iter-evaluation {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: rgba(6, 182, 212, 0.06);
+    border-radius: 6px;
+    border-left: 3px solid var(--info);
+}
+
+/* LLM content */
+.workflow-llm-content {
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+.workflow-llm-text {
+    background: rgba(255,255,255,0.02);
+    border-radius: 6px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+}
+.workflow-llm-text p { margin-bottom: 6px; }
+.workflow-llm-text ul { padding-left: 18px; }
+
+/* Step toggles */
+.workflow-step-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.workflow-step-toggles .form-check-label {
+    font-size: 0.82rem;
 }

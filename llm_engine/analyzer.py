@@ -96,6 +96,211 @@ class LLMAnalyzer:
         return cls._call_llm(prompt)
 
     # ------------------------------------------------------------------ #
+    #  Iterative Workflow: Plan, Evaluate Step, Evaluate Iteration
+    # ------------------------------------------------------------------ #
+
+    @classmethod
+    def plan_workflow_iteration(
+        cls,
+        data_snapshot: dict,
+        quality_metrics: dict,
+        target_column: str,
+        task_type: str,
+        objectives: str,
+        iteration_number: int,
+        max_iterations: int,
+        enabled_steps: list[str],
+        history_summary: str = "",
+    ) -> dict:
+        """
+        Ask the LLM to produce a concrete iteration plan.
+        Returns a dict with keys: plan_summary, steps (list of step dicts).
+        """
+        logger.info("LLM: planning workflow iteration %d (target=%s, task=%s)",
+                     iteration_number, target_column, task_type)
+
+        prompt = (
+            "You are the AceML Studio Workflow Planner.\n"
+            "Your job is to plan ONE iteration of data-preparation steps for an ML pipeline.\n\n"
+            "RULES:\n"
+            "• Return ONLY valid JSON (no markdown fences, no explanation outside JSON).\n"
+            "• Each step must use operations compatible with AceML Studio's existing engine.\n"
+            "• Be conservative — only include steps that will measurably improve the data.\n"
+            "• If the data is already clean and well-prepared, return fewer or no steps.\n"
+            "• Respect the enabled_steps list — only use step types from that list.\n\n"
+            "AVAILABLE STEP TYPES AND THEIR OPERATIONS:\n"
+            "1. data_analysis — no operations needed (runs quality analysis automatically)\n"
+            "2. data_cleaning — operations list, each: {action, params}\n"
+            "   Actions: drop_missing (params: {columns?, how?}), impute (params: {strategy, columns?}),\n"
+            "            drop_duplicates (params: {subset?, keep?}), clip_outliers (params: {columns?, multiplier?}),\n"
+            "            remove_outliers (params: {columns?, multiplier?}), drop_columns (params: {columns}),\n"
+            "            convert_to_numeric (params: {columns}), convert_to_datetime (params: {columns}),\n"
+            "            convert_to_category (params: {columns})\n"
+            "3. feature_engineering — operations list, each: {action, params}\n"
+            "   Actions: extract_date_features (params: {columns}),\n"
+            "            create_interactions (params: {column_pairs}),\n"
+            "            create_polynomial (params: {columns, degree?}),\n"
+            "            create_bins (params: {column, bins, labels?, new_col_name}),\n"
+            "            create_ratio (params: {numerator, denominator, new_col_name}),\n"
+            "            create_aggregate (params: {column, group_by, agg_func, new_col_name})\n"
+            "4. transformations — operations list, each: {action, params}\n"
+            "   Actions: scale (params: {columns, method: standard|minmax|robust}),\n"
+            "            one_hot_encode (params: {columns, drop_first?, max_cardinality?}),\n"
+            "            label_encode (params: {columns}),\n"
+            "            target_encode (params: {columns, target}),\n"
+            "            log_transform (params: {columns}),\n"
+            "            power_transform (params: {columns})\n"
+            "5. dimensionality_reduction — operations list, each: {method, params}\n"
+            "   Methods: pca (params: {n_components?}), variance_threshold (params: {threshold?}),\n"
+            "            correlation_filter (params: {threshold?}),\n"
+            "            feature_importance (params: {target, task?, top_k?})\n\n"
+            f"ITERATION: {iteration_number} of {max_iterations}\n"
+            f"TARGET COLUMN: {target_column}\n"
+            f"TASK TYPE: {task_type}\n"
+            f"USER OBJECTIVES: {objectives or 'General data preparation for ML training'}\n"
+            f"ENABLED STEPS: {json.dumps(enabled_steps)}\n\n"
+            f"CURRENT DATA SNAPSHOT:\n```json\n{json.dumps(data_snapshot, indent=2, default=str)}\n```\n\n"
+            f"QUALITY METRICS:\n```json\n{json.dumps(quality_metrics, indent=2, default=str)}\n```\n\n"
+        )
+        if history_summary:
+            prompt += f"PREVIOUS ITERATION HISTORY:\n{history_summary}\n\n"
+
+        prompt += (
+            "RESPOND WITH THIS EXACT JSON STRUCTURE:\n"
+            "{\n"
+            '  "plan_summary": "Brief description of what this iteration will do",\n'
+            '  "steps": [\n'
+            "    {\n"
+            '      "step_type": "data_cleaning",\n'
+            '      "title": "Human-readable step title",\n'
+            '      "description": "What this step does and why",\n'
+            '      "rationale": "Why this step is needed based on the data",\n'
+            '      "operations": [{"action": "...", "params": {...}}]\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        )
+
+        raw = cls._call_llm(prompt)
+        return cls._parse_json_response(raw, fallback={
+            "plan_summary": raw[:300],
+            "steps": [{
+                "step_type": "data_analysis",
+                "title": "Analyze Data Quality",
+                "description": "Run quality analysis on the current dataset",
+                "rationale": "Baseline assessment",
+                "operations": [],
+            }],
+        })
+
+    @classmethod
+    def evaluate_workflow_step(
+        cls,
+        data_snapshot: dict,
+        quality_metrics: dict,
+        target_column: str,
+        task_type: str,
+        objectives: str,
+    ) -> str:
+        """Evaluate the current state of the data after a step."""
+        logger.info("LLM: evaluating workflow step (target=%s)", target_column)
+        prompt = (
+            "You are the AceML Studio Workflow Evaluator.\n"
+            "Evaluate the current state of the dataset and provide a brief assessment.\n\n"
+            f"TARGET: {target_column} ({task_type})\n"
+            f"OBJECTIVES: {objectives or 'General ML preparation'}\n\n"
+            f"DATA SNAPSHOT:\n```json\n{json.dumps(data_snapshot, indent=2, default=str)}\n```\n\n"
+            f"QUALITY METRICS:\n```json\n{json.dumps(quality_metrics, indent=2, default=str)}\n```\n\n"
+            "Provide a brief (2-3 sentence) assessment of:\n"
+            "1. Current data readiness for ML training\n"
+            "2. Any remaining issues that need addressing\n"
+            "3. Whether the data is ready for model training\n"
+        )
+        return cls._call_llm(prompt)
+
+    @classmethod
+    def evaluate_workflow_iteration(
+        cls,
+        data_snapshot: dict,
+        quality_metrics: dict,
+        target_column: str,
+        task_type: str,
+        objectives: str,
+        iteration_number: int,
+        max_iterations: int,
+        step_summaries: list[dict],
+        initial_quality: int,
+    ) -> dict:
+        """
+        Evaluate a completed iteration and decide whether to continue.
+        Returns dict with: evaluation, should_continue, improvement_summary.
+        """
+        logger.info("LLM: evaluating iteration %d (quality %d→%d)",
+                     iteration_number, initial_quality,
+                     quality_metrics.get("quality_score", 0))
+
+        prompt = (
+            "You are the AceML Studio Workflow Evaluator.\n"
+            "An iteration of data preparation has completed. Evaluate the results and decide "
+            "whether another iteration is needed.\n\n"
+            "RULES:\n"
+            "• Return ONLY valid JSON (no markdown fences).\n"
+            "• Set should_continue to true ONLY if there are concrete, actionable improvements remaining.\n"
+            "• If quality score is above 80 and no critical issues remain, recommend stopping.\n"
+            "• If improvement from last iteration was minimal (<5 points), recommend stopping.\n\n"
+            f"ITERATION: {iteration_number} of {max_iterations}\n"
+            f"TARGET: {target_column} ({task_type})\n"
+            f"OBJECTIVES: {objectives or 'General ML preparation'}\n"
+            f"INITIAL QUALITY SCORE: {initial_quality}\n"
+            f"CURRENT QUALITY SCORE: {quality_metrics.get('quality_score', 0)}\n\n"
+            f"STEP RESULTS:\n```json\n{json.dumps(step_summaries, indent=2, default=str)}\n```\n\n"
+            f"CURRENT DATA:\n```json\n{json.dumps(data_snapshot, indent=2, default=str)}\n```\n\n"
+            f"QUALITY METRICS:\n```json\n{json.dumps(quality_metrics, indent=2, default=str)}\n```\n\n"
+            "RESPOND WITH THIS EXACT JSON STRUCTURE:\n"
+            "{\n"
+            '  "evaluation": "Detailed evaluation of this iteration\'s results",\n'
+            '  "should_continue": true/false,\n'
+            '  "improvement_summary": "What improved and what still needs work",\n'
+            '  "reason_to_continue_or_stop": "Why another iteration is/isn\'t needed"\n'
+            "}\n"
+        )
+
+        raw = cls._call_llm(prompt)
+        return cls._parse_json_response(raw, fallback={
+            "evaluation": raw[:500],
+            "should_continue": False,
+            "improvement_summary": "Could not parse LLM response",
+        })
+
+    @classmethod
+    def _parse_json_response(cls, raw: str, fallback: dict) -> dict:
+        """Attempt to extract JSON from an LLM response string."""
+        # Try direct parse first
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        # Try to find JSON block in markdown fences
+        import re
+        patterns = [
+            r"```json\s*([\s\S]*?)\s*```",
+            r"```\s*([\s\S]*?)\s*```",
+            r"\{[\s\S]*\}",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, raw)
+            if match:
+                try:
+                    candidate = match.group(1) if match.lastindex else match.group(0)
+                    return json.loads(candidate)
+                except (json.JSONDecodeError, IndexError):
+                    continue
+
+        logger.warning("Could not parse JSON from LLM response (len=%d), using fallback", len(raw))
+        return fallback
+
+    # ------------------------------------------------------------------ #
     #  Multi-turn Chat with Rich Context
     # ------------------------------------------------------------------ #
     CHAT_SYSTEM_PROMPT = (

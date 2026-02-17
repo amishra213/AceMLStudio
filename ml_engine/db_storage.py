@@ -289,7 +289,7 @@ class DataFrameDBStorage:
     
     def save_dataset(self, dataset_name: str, df: pd.DataFrame,
                      description: str = "", original_filename: str = "",
-                     tags: list[str] = None) -> bool:
+                     tags: Optional[list[str]] = None) -> bool:
         """Save a dataset permanently with a name.
         
         Args:
@@ -431,7 +431,7 @@ class DataFrameDBStorage:
             logger.error("Failed to load dataset '%s': %s", dataset_name, e, exc_info=True)
             return None
     
-    def list_datasets(self, search: str = None, tags: list[str] = None) -> list[dict]:
+    def list_datasets(self, search: Optional[str] = None, tags: Optional[list[str]] = None) -> list[dict]:
         """List all saved datasets.
         
         Args:
