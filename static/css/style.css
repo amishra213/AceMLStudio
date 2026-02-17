@@ -124,6 +124,34 @@ body {
     font-weight: 500;
 }
 
+/* Primary nav item (AI Workflow) — slightly highlighted */
+.nav-item.nav-item-primary {
+    position: relative;
+}
+.nav-item.nav-item-primary .badge {
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+/* Sub nav items (Manual Tools) — indented, smaller */
+.nav-item.nav-item-sub {
+    padding-left: 36px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding-top: 7px;
+    padding-bottom: 7px;
+}
+.nav-item.nav-item-sub i {
+    font-size: 0.75rem;
+    width: 16px;
+}
+.nav-item.nav-item-sub:hover {
+    color: var(--text-secondary);
+}
+.nav-item.nav-item-sub.active {
+    color: var(--accent);
+}
+
 .nav-item i {
     width: 18px;
     text-align: center;
@@ -309,6 +337,33 @@ body {
 .pipe-step.completed {
     border-color: var(--success);
     color: var(--success);
+}
+
+/* Primary pipeline step (AI Workflow) */
+.pipe-step.pipe-step-primary {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--accent);
+    font-weight: 600;
+}
+.pipe-step.pipe-step-primary:hover {
+    background: rgba(99, 102, 241, 0.2);
+}
+
+/* Subtle pipeline steps (manual — handled by AI) */
+.pipe-step.pipe-step-subtle {
+    opacity: 0.5;
+    border-style: dashed;
+    font-size: 0.7rem;
+    min-width: 58px;
+    padding: 8px 10px;
+}
+.pipe-step.pipe-step-subtle:hover {
+    opacity: 0.85;
+}
+.pipe-arrow.pipe-arrow-subtle {
+    opacity: 0.35;
+    font-size: 0.65rem;
 }
 
 .pipe-step i {
@@ -1464,6 +1519,78 @@ body {
     font-weight: 600;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Workflow Progress Bar & Activity Feed
+   ══════════════════════════════════════════════════════════════ */
+
+.workflow-progress-section {
+    background: rgba(76, 29, 149, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.workflow-progress-bar {
+    height: 24px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.workflow-progress-bar .progress-bar {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 24px;
+    transition: width 0.6s ease;
+}
+
+.workflow-activity-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 12px;
+}
+
+.workflow-activity-card .activity-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.workflow-activity-card .activity-icon i {
+    font-size: 1.5rem;
+    color: #a855f7;
+}
+
+.workflow-activity-card .activity-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e9d5ff;
+    margin-bottom: 4px;
+}
+
+.workflow-activity-card .activity-description {
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.workflow-activity-card .activity-step-info {
+    margin-top: 8px;
+}
+
+.workflow-activity-card .activity-step-info .badge {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+}
+
+
 /* Iteration evaluation */
 .workflow-iter-evaluation {
     margin-top: 12px;
@@ -1495,4 +1622,38 @@ body {
 }
 .workflow-step-toggles .form-check-label {
     font-size: 0.82rem;
+}
+
+/* ═══════════════════ FINALIZE CARD ═══════════════════ */
+#workflowFinalizeCard {
+    border-color: rgba(34, 197, 94, 0.3);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.04), rgba(34, 197, 94, 0.01));
+}
+#workflowFinalizeCard .card-body {
+    position: relative;
+}
+.finalize-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(34, 197, 94, 0.1);
+    flex-shrink: 0;
+}
+
+/* ═══════════════════ UPLOAD NEXT STEP BANNER ═══════════════════ */
+#uploadNextStepBanner {
+    border-color: rgba(99, 102, 241, 0.3);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(99, 102, 241, 0.02));
+}
+
+/* ═══════════════════ MANUAL OVERRIDE TOOLBAR ═══════════════════ */
+#workflowManualOverride {
+    border-style: dashed;
+    border-color: var(--border-color);
+}
+#workflowManualOverride .card-body {
+    padding: 14px 18px;
 }

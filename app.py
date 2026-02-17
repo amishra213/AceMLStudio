@@ -1077,6 +1077,56 @@ def get_upload_config():
 
 
 # ────────────────────────────────────────────────────────────────────
+#  Data Finalize — mark data as ready for training
+# ────────────────────────────────────────────────────────────────────
+@app.route("/api/data/finalize", methods=["POST"])
+def finalize_data():
+    """Save the current processed DataFrame state and mark it as ready for training."""
+    sid = _sid()
+    df = _df()
+    if df is None:
+        return _err("No dataset loaded", 404)
+
+    try:
+        # Save the processed dataset if db_storage is available
+        saved_name = None
+        if db_storage:
+            import time as _time
+            dataset_name = f"finalized_{int(_time.time())}"
+            original = DATA_STORE.get(sid, {}).get("filename", "unknown")
+            db_storage.save_dataset(
+                dataset_name=dataset_name,
+                df=df,
+                description="Auto-saved after AI Workflow completion",
+                original_filename=original,
+                tags=["finalized", "workflow-output"],
+            )
+            saved_name = dataset_name
+            logger.info("Finalized data saved as '%s' (session=%s)", dataset_name, sid)
+
+        # Compute final quality report
+        store = DATA_STORE.get(sid, {})
+        target = store.get("target")
+        analyzer = DataQualityAnalyzer(df, target_column=target)
+        quality = analyzer.full_report()
+
+        logger.info("Data finalized: %d rows × %d cols, quality=%s (session=%s)",
+                     df.shape[0], df.shape[1], quality.get("quality_score", "?"), sid)
+
+        return _ok({
+            "rows": int(df.shape[0]),
+            "columns": int(df.shape[1]),
+            "quality_score": quality.get("quality_score", 0),
+            "saved_name": saved_name,
+            "message": "Data finalized and ready for model training",
+        })
+
+    except Exception as e:
+        logger.error("Error finalizing data: %s", e, exc_info=True)
+        return _err(f"Failed to finalize data: {str(e)}")
+
+
+# ────────────────────────────────────────────────────────────────────
 #  Model Training
 # ────────────────────────────────────────────────────────────────────
 @app.route("/api/model/train", methods=["POST"])

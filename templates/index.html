@@ -33,24 +33,25 @@
                 <a class="nav-item" data-section="upload" href="#" title="Upload and configure your dataset">
                     <i class="fas fa-cloud-upload-alt"></i><span>Upload Data</span>
                 </a>
-                <a class="nav-item" data-section="quality" href="#" title="Analyze data quality, find missing values and outliers">
+                <a class="nav-item nav-item-primary" data-section="workflow" href="#" title="LLM-driven iterative workflow: auto-analyze, clean, transform, and prepare data for training">
+                    <i class="fas fa-project-diagram"></i><span>AI Workflow</span>
+                    <span class="badge bg-info ms-auto" style="font-size:0.55rem; padding:2px 5px;">RECOMMENDED</span>
+                </a>
+                <div class="nav-group-label">MANUAL TOOLS <small class="text-muted ms-1" style="font-size:0.55rem; letter-spacing:0">(override / enhance)</small></div>
+                <a class="nav-item nav-item-sub" data-section="quality" href="#" title="Analyze data quality, find missing values and outliers">
                     <i class="fas fa-search-plus"></i><span>Data Quality</span>
                 </a>
-                <a class="nav-item" data-section="cleaning" href="#" title="Clean your data: handle missing values, duplicates, and outliers">
+                <a class="nav-item nav-item-sub" data-section="cleaning" href="#" title="Clean your data: handle missing values, duplicates, and outliers">
                     <i class="fas fa-broom"></i><span>Data Cleaning</span>
                 </a>
-                <a class="nav-item" data-section="features" href="#" title="Create new features from existing data to improve predictions">
+                <a class="nav-item nav-item-sub" data-section="features" href="#" title="Create new features from existing data to improve predictions">
                     <i class="fas fa-cogs"></i><span>Feature Engineering</span>
                 </a>
-                <a class="nav-item" data-section="transform" href="#" title="Scale numbers and encode categories for ML algorithms">
+                <a class="nav-item nav-item-sub" data-section="transform" href="#" title="Scale numbers and encode categories for ML algorithms">
                     <i class="fas fa-exchange-alt"></i><span>Transformations</span>
                 </a>
-                <a class="nav-item" data-section="dimensions" href="#" title="Reduce number of features while keeping important information">
+                <a class="nav-item nav-item-sub" data-section="dimensions" href="#" title="Reduce number of features while keeping important information">
                     <i class="fas fa-compress-arrows-alt"></i><span>Reduce Dimensions</span>
-                </a>
-                <div class="nav-group-label">AUTOMATION</div>
-                <a class="nav-item" data-section="workflow" href="#" title="LLM-driven iterative workflow: auto-analyze, clean, transform, and prepare data for training">
-                    <i class="fas fa-project-diagram"></i><span>AI Workflow</span>
                 </a>
                 <div class="nav-group-label">MODELING</div>
                 <a class="nav-item" data-section="training" href="#" title="Train machine learning models on your data">
@@ -156,35 +157,39 @@
                                 </div>
                                 <div class="help-panel" id="pipeline-help" style="margin: 0 0 16px 0;">
                                     <div class="help-panel-content" style="font-size: 0.8rem;">
-                                        <p><strong>The Machine Learning Pipeline:</strong> Follow these steps in order for best results. Each step prepares your data for the next.</p>
+                                        <p><strong>The Machine Learning Pipeline:</strong> Upload your data, let the AI prepare it, then train models. You can manually override any step.</p>
                                         <ol style="margin: 8px 0; padding-left: 24px; line-height: 1.8;">
                                             <li><strong>Upload:</strong> Start by loading your data file</li>
-                                            <li><strong>Quality:</strong> Check for issues (missing values, outliers)</li>
-                                            <li><strong>Clean:</strong> Fix the issues found</li>
-                                            <li><strong>Features:</strong> Create helpful new columns</li>
-                                            <li><strong>Transform:</strong> Scale numbers and encode categories</li>
+                                            <li><strong>AI Workflow:</strong> <em>(Recommended)</em> The AI automatically analyzes, cleans, engineers features, transforms, and reduces dimensions</li>
+                                            <li><strong>Manual Tools:</strong> <em>(Optional)</em> Override or enhance any AI step — Quality, Clean, Features, Transform, Reduce</li>
+                                            <li><strong>Finalize:</strong> Save the prepared data and proceed to training</li>
                                             <li><strong>Train:</strong> Let the system learn patterns from your data</li>
                                             <li><strong>Evaluate:</strong> Test how well it works</li>
                                             <li><strong>Tune:</strong> (Optional) Fine-tune for better performance</li>
                                         </ol>
-                                        <p style="margin-bottom: 0;"><strong>Tip:</strong> You can revisit steps as needed. Machine learning is iterative!</p>
+                                        <p style="margin-bottom: 0;"><strong>Tip:</strong> The AI Workflow handles steps 2-4 for you. Use manual tools if you want more control over specific steps.</p>
                                     </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="pipeline-steps">
                                         <div class="pipe-step" data-goto="upload"><i class="fas fa-upload"></i><span>Upload</span></div>
                                         <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
-                                        <div class="pipe-step" data-goto="quality"><i class="fas fa-search"></i><span>Quality</span></div>
+                                        <div class="pipe-step pipe-step-primary" data-goto="workflow"><i class="fas fa-project-diagram"></i><span>AI Workflow</span></div>
                                         <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
-                                        <div class="pipe-step" data-goto="cleaning"><i class="fas fa-broom"></i><span>Clean</span></div>
-                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
-                                        <div class="pipe-step" data-goto="features"><i class="fas fa-cogs"></i><span>Features</span></div>
-                                        <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
-                                        <div class="pipe-step" data-goto="transform"><i class="fas fa-exchange-alt"></i><span>Transform</span></div>
+                                        <div class="pipe-step pipe-step-subtle" data-goto="quality"><i class="fas fa-search"></i><span>Quality</span></div>
+                                        <div class="pipe-arrow pipe-arrow-subtle"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step pipe-step-subtle" data-goto="cleaning"><i class="fas fa-broom"></i><span>Clean</span></div>
+                                        <div class="pipe-arrow pipe-arrow-subtle"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step pipe-step-subtle" data-goto="features"><i class="fas fa-cogs"></i><span>Features</span></div>
+                                        <div class="pipe-arrow pipe-arrow-subtle"><i class="fas fa-arrow-right"></i></div>
+                                        <div class="pipe-step pipe-step-subtle" data-goto="transform"><i class="fas fa-exchange-alt"></i><span>Transform</span></div>
                                         <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
                                         <div class="pipe-step" data-goto="training"><i class="fas fa-brain"></i><span>Train</span></div>
                                         <div class="pipe-arrow"><i class="fas fa-arrow-right"></i></div>
                                         <div class="pipe-step" data-goto="evaluation"><i class="fas fa-chart-bar"></i><span>Evaluate</span></div>
+                                    </div>
+                                    <div class="text-center mt-2">
+                                        <small class="text-muted"><i class="fas fa-info-circle me-1"></i>The AI Workflow automates the greyed-out steps. Use manual tools to override or enhance any step.</small>
                                     </div>
                                 </div>
                             </div>
@@ -197,10 +202,14 @@
                                         <i class="fas fa-upload me-2"></i>Upload Dataset
                                     </button>
                                     <div class="control-description mb-3">Start here: Load your CSV, Excel, or JSON data file</div>
-                                    <button class="btn btn-outline-success w-100 mb-2 quick-action" data-goto="ai" title="Get AI-powered insights and recommendations">
-                                        <i class="fas fa-robot me-2"></i>AI Analysis
+                                    <button class="btn btn-primary w-100 mb-2 quick-action" data-goto="workflow" title="Launch the AI-powered data preparation pipeline">
+                                        <i class="fas fa-project-diagram me-2"></i>AI Workflow
                                     </button>
-                                    <div class="control-description mb-3">Get expert guidance and recommendations from AI</div>
+                                    <div class="control-description mb-3">Recommended next step: Let AI prepare your data for training automatically</div>
+                                    <button class="btn btn-outline-success w-100 mb-2 quick-action" data-goto="training" title="Train models on your prepared dataset">
+                                        <i class="fas fa-brain me-2"></i>Train Models
+                                    </button>
+                                    <div class="control-description mb-3">After data is ready, train and compare ML models</div>
                                     <button class="btn btn-outline-info w-100 quick-action" data-goto="experiments" title="View and compare your saved experiments">
                                         <i class="fas fa-flask me-2"></i>View Experiments
                                     </button>
@@ -295,6 +304,22 @@
                         <div class="card-body p-0">
                             <div class="table-responsive">
                                 <table class="table table-sm table-hover mb-0" id="previewTable"></table>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Next Step Banner (shown after upload + target set) -->
+                    <div class="card glass-card mt-4 d-none" id="uploadNextStepBanner">
+                        <div class="card-body text-center py-4">
+                            <i class="fas fa-arrow-circle-right fa-2x text-info mb-2 d-block"></i>
+                            <h6 class="mb-2">Data Loaded — What's Next?</h6>
+                            <p class="text-muted small mb-3">Your data is ready. Let the AI automatically prepare it for training, or use manual tools.</p>
+                            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                <button class="btn btn-primary" onclick="navigateTo('workflow')">
+                                    <i class="fas fa-project-diagram me-1"></i>Start AI Workflow <span class="badge bg-light text-dark ms-1">Recommended</span>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="navigateTo('quality')">
+                                    <i class="fas fa-search-plus me-1"></i>Manual: Check Quality
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1057,6 +1082,48 @@
                                 </div>
                             </div>
 
+                            <!-- Progress Bar & Activity Feed -->
+                            <div class="workflow-progress-section mb-3 d-none" id="workflowProgressSection">
+                                <!-- Overall Progress Bar -->
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <small class="fw-bold text-muted">
+                                            <i class="fas fa-tasks me-1"></i>Overall Progress
+                                        </small>
+                                        <small class="text-muted" id="wfProgressText">0% (0/0 steps)</small>
+                                    </div>
+                                    <div class="progress workflow-progress-bar">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                             role="progressbar" 
+                                             id="wfProgressBar" 
+                                             style="width: 0%"
+                                             aria-valuenow="0" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Current Activity -->
+                                <div class="workflow-activity-card" id="workflowActivityCard">
+                                    <div class="d-flex align-items-start">
+                                        <div class="activity-icon me-3">
+                                            <i class="fas fa-cog fa-spin"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="activity-title" id="wfActivityTitle">Initializing workflow...</div>
+                                            <div class="activity-description text-muted" id="wfActivityDesc">
+                                                Preparing data pipeline and planning execution steps
+                                            </div>
+                                            <div class="activity-step-info mt-1">
+                                                <small class="badge bg-secondary" id="wfActivityStep">—</small>
+                                                <small class="text-muted ms-2" id="wfActivityTime">—</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Iteration timeline -->
                             <div id="wfIterationTimeline"></div>
 
@@ -1073,6 +1140,102 @@
                         <div class="card-body">
                             <h6 class="card-title"><i class="fas fa-robot me-2"></i>AI Analysis & Plan</h6>
                             <div id="wfLLMContent" class="workflow-llm-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- Data Ready — Finalize & Proceed to Training -->
+                    <div class="card mb-3 d-none" id="workflowFinalizeCard">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="finalize-icon me-3">
+                                    <i class="fas fa-check-circle fa-2x text-success"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-flag-checkered me-2"></i>Data Preparation Complete</h6>
+                                    <p class="text-muted mb-0 small">Your data has been processed by the AI workflow and is ready for model training.</p>
+                                </div>
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <div class="workflow-metric-card">
+                                        <div class="metric-label">Final Quality</div>
+                                        <div class="metric-value text-success" id="wfFinalQuality">—</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="workflow-metric-card">
+                                        <div class="metric-label">Final Shape</div>
+                                        <div class="metric-value" id="wfFinalShape">—</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="workflow-metric-card">
+                                        <div class="metric-label">Iterations</div>
+                                        <div class="metric-value" id="wfFinalIterations">—</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="workflow-metric-card">
+                                        <div class="metric-label">Quality Δ</div>
+                                        <div class="metric-value" id="wfFinalDelta">—</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="btn btn-success" id="btnWfSaveAndTrain" onclick="workflowSaveAndTrain()">
+                                    <i class="fas fa-brain me-1"></i>Save Data & Start Training
+                                </button>
+                                <button class="btn btn-outline-primary" id="btnWfSaveData" onclick="workflowSaveData()">
+                                    <i class="fas fa-save me-1"></i>Save Data Only
+                                </button>
+                                <button class="btn btn-outline-info" onclick="navigateTo('quality')">
+                                    <i class="fas fa-search-plus me-1"></i>Review Quality
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="navigateTo('cleaning')">
+                                    <i class="fas fa-broom me-1"></i>Manual Adjustments
+                                </button>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted"><i class="fas fa-info-circle me-1"></i>You can still use manual tools (Quality, Cleaning, Features, etc.) to enhance the AI's work before training.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Override Section — Quick Links -->
+                    <div class="card mb-3" id="workflowManualOverride">
+                        <div class="card-body">
+                            <h6 class="card-title mb-3">
+                                <i class="fas fa-tools me-2"></i>Manual Tools
+                                <small class="text-muted ms-2" style="font-weight:400">Override or enhance any pipeline step</small>
+                            </h6>
+                            <div class="row g-2">
+                                <div class="col">
+                                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="navigateTo('quality')">
+                                        <i class="fas fa-search-plus me-1"></i>Quality
+                                    </button>
+                                </div>
+                                <div class="col">
+                                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="navigateTo('cleaning')">
+                                        <i class="fas fa-broom me-1"></i>Cleaning
+                                    </button>
+                                </div>
+                                <div class="col">
+                                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="navigateTo('features')">
+                                        <i class="fas fa-cogs me-1"></i>Features
+                                    </button>
+                                </div>
+                                <div class="col">
+                                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="navigateTo('transform')">
+                                        <i class="fas fa-exchange-alt me-1"></i>Transform
+                                    </button>
+                                </div>
+                                <div class="col">
+                                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="navigateTo('dimensions')">
+                                        <i class="fas fa-compress-arrows-alt me-1"></i>Dimensions
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-2 d-block"><i class="fas fa-lightbulb me-1"></i>Use these to manually inspect or refine what the AI did, or skip the AI and do everything yourself.</small>
                         </div>
                     </div>
                 </section>

@@ -33,9 +33,9 @@ class DataCleaner:
         for col in cols:
             if col not in df.columns:
                 continue
-            if strategy == "mean" and np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            if strategy == "mean" and pd.api.types.is_numeric_dtype(df[col]):
                 df[col].fillna(df[col].mean(), inplace=True)
-            elif strategy == "median" and np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            elif strategy == "median" and pd.api.types.is_numeric_dtype(df[col]):
                 df[col].fillna(df[col].median(), inplace=True)
             elif strategy == "mode":
                 mode_val = df[col].mode()
@@ -65,7 +65,7 @@ class DataCleaner:
         mult = multiplier or Config.OUTLIER_IQR_MULTIPLIER
         cols = columns or df.select_dtypes(include=[np.number]).columns.tolist()
         for col in cols:
-            if not np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            if not pd.api.types.is_numeric_dtype(df[col]):
                 continue
             q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
             iqr = q3 - q1
@@ -79,7 +79,7 @@ class DataCleaner:
         cols = columns or df.select_dtypes(include=[np.number]).columns.tolist()
         mask = pd.Series(True, index=df.index)
         for col in cols:
-            if not np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            if not pd.api.types.is_numeric_dtype(df[col]):
                 continue
             q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
             iqr = q3 - q1

@@ -34,7 +34,8 @@ class DataTransformer:
         Returns (transformed_df, fitted_scaler).
         """
         df = df.copy()
-        valid = [c for c in columns if c in df.columns and np.issubdtype(df[c].dtype, np.number)]  # type: ignore
+        # Handle both numpy dtypes and pandas nullable numeric types (Int64, Float64, etc.)
+        valid = [c for c in columns if c in df.columns and pd.api.types.is_numeric_dtype(df[c])]
         if not valid:
             return df, None
 
@@ -45,6 +46,12 @@ class DataTransformer:
         }
         scaler_cls = scalers.get(method, StandardScaler)
         scaler = scaler_cls()
+        
+        # Convert nullable int types to float to avoid sklearn compatibility issues
+        for col in valid:
+            if df[col].dtype.name.startswith('Int'):  # Int8, Int16, Int32, Int64
+                df[col] = df[col].astype('float64')
+        
         df[valid] = scaler.fit_transform(df[valid].fillna(0))
         return df, scaler
 
@@ -343,7 +350,10 @@ class DataTransformer:
     def log_transform(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         df = df.copy()
         for col in columns:
-            if col in df.columns and np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+                # Convert nullable int types to float before log transform
+                if df[col].dtype.name.startswith('Int'):  # Int8, Int16, Int32, Int64
+                    df[col] = df[col].astype('float64')
                 df[col] = np.log1p(df[col].clip(lower=0))
         return df
 
@@ -353,9 +363,16 @@ class DataTransformer:
     @staticmethod
     def power_transform(df: pd.DataFrame, columns: list[str]) -> tuple[pd.DataFrame, object]:
         df = df.copy()
-        valid = [c for c in columns if c in df.columns and np.issubdtype(df[c].dtype, np.number)]  # type: ignore
+        # Handle both numpy dtypes and pandas nullable numeric types
+        valid = [c for c in columns if c in df.columns and pd.api.types.is_numeric_dtype(df[c])]
         if not valid:
             return df, None
+        
+        # Convert nullable int types to float to avoid sklearn compatibility issues
+        for col in valid:
+            if df[col].dtype.name.startswith('Int'):  # Int8, Int16, Int32, Int64
+                df[col] = df[col].astype('float64')
+        
         pt = PowerTransformer(method="yeo-johnson", standardize=True)
         df[valid] = pt.fit_transform(df[valid].fillna(0))
         return df, pt

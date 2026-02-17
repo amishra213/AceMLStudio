@@ -556,6 +556,9 @@ function onUploadSuccess(data) {
         showLargeDatasetBanner(info);
     }
 
+    // Show "Next Step" banner pointing to AI Workflow
+    document.getElementById("uploadNextStepBanner")?.classList.remove("d-none");
+
     showToast("Success", `Loaded ${filename} (${info.rows.toLocaleString()} rows, ${info.file_size_mb} MB)`, "success");
 }
 
@@ -2664,6 +2667,48 @@ function getWorkflowConfig() {
     return { target, task, max_iterations: maxIterations, objectives, auto_approve: mode === "auto", enabled_steps: enabledSteps };
 }
 
+function showWorkflowProgressInitial(config) {
+    // Hide config card, show progress card immediately
+    document.getElementById("workflowConfigCard").classList.add("d-none");
+    document.getElementById("workflowProgressCard").classList.remove("d-none");
+    document.getElementById("workflowProgressSection").classList.remove("d-none");
+
+    // Scroll progress section into view
+    setTimeout(() => {
+        document.getElementById("workflowProgressSection").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 100);
+
+    // Set initial status
+    const badge = document.getElementById("wfStatusBadge");
+    badge.className = "badge ms-2 bg-info";
+    badge.textContent = "STARTING";
+
+    // Initial metrics
+    document.getElementById("wfInitialQuality").textContent = "—";
+    document.getElementById("wfCurrentQuality").textContent = "—";
+    document.getElementById("wfIteration").textContent = `0 / ${config.max_iterations}`;
+    document.getElementById("wfShape").textContent = "—";
+
+    // Show progress at 0% with planning state
+    const progressBar = document.getElementById("wfProgressBar");
+    const progressText = document.getElementById("wfProgressText");
+    progressBar.style.width = "5%";
+    progressBar.className = "progress-bar progress-bar-striped progress-bar-animated bg-info";
+    progressText.textContent = "Initializing...";
+
+    // Activity card - show planning state
+    const activityCard = document.getElementById("workflowActivityCard");
+    const activityIcon = activityCard.querySelector(".activity-icon i");
+    activityIcon.className = "fas fa-brain fa-pulse text-info";
+    document.getElementById("wfActivityTitle").textContent = "Starting AI Workflow...";
+    document.getElementById("wfActivityDesc").textContent = "The AI is analyzing your data and planning the optimal data preparation pipeline";
+    document.getElementById("wfActivityStep").textContent = "Initializing";
+    document.getElementById("wfActivityTime").textContent = "—";
+
+    // Clear timeline
+    document.getElementById("wfIterationTimeline").innerHTML = '<div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Planning workflow...</div>';
+}
+
 async function startWorkflow() {
     const config = getWorkflowConfig();
     if (!config.target) {
@@ -2677,12 +2722,38 @@ async function startWorkflow() {
 
     document.getElementById("btnStartWorkflow").disabled = true;
 
+    // Show progress UI immediately
+    showWorkflowProgressInitial(config);
+
     if (config.auto_approve) {
-        // Run all in one call
-        showLoading("Running AI Workflow — the LLM is planning and executing iteratively…");
+        // Run all in one call, but poll for progress updates
+        let pollInterval = null;
         try {
-            const res = await API.post("/api/workflow/run-all", config);
-            hideLoading();
+            // Start the workflow (non-blocking API call)
+            const runPromise = API.post("/api/workflow/run-all", config);
+            
+            // Start polling for progress updates
+            pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await API.get("/api/workflow/status");
+                    if (statusRes.status === "ok" && statusRes.data.status !== "none") {
+                        renderWorkflowState(statusRes.data);
+                        
+                        // Stop polling if workflow is done
+                        const doneStates = ["completed", "failed", "aborted"];
+                        if (doneStates.includes(statusRes.data.status)) {
+                            if (pollInterval) clearInterval(pollInterval);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Status poll error:", e);
+                }
+            }, 800); // Poll every 800ms
+            
+            // Wait for workflow to complete
+            const res = await runPromise;
+            if (pollInterval) clearInterval(pollInterval); // Stop polling
+            
             if (res.status === "ok") {
                 renderWorkflowState(res.data);
                 showToast("Success", "AI Workflow completed!", "success");
@@ -2691,7 +2762,7 @@ async function startWorkflow() {
                 document.getElementById("btnStartWorkflow").disabled = false;
             }
         } catch (e) {
-            hideLoading();
+            if (pollInterval) clearInterval(pollInterval); // Stop polling on error
             showToast("Error", "Workflow failed: " + e, "error");
             document.getElementById("btnStartWorkflow").disabled = false;
         }
@@ -2767,7 +2838,9 @@ async function workflowReset() {
     try {
         await API.post("/api/workflow/reset");
         document.getElementById("workflowProgressCard").classList.add("d-none");
+        document.getElementById("workflowProgressSection").classList.add("d-none");
         document.getElementById("workflowLLMCard").classList.add("d-none");
+        document.getElementById("workflowFinalizeCard").classList.add("d-none");
         document.getElementById("workflowConfigCard").classList.remove("d-none");
         document.getElementById("btnStartWorkflow").disabled = false;
         document.getElementById("wfDeferredQueue").classList.add("d-none");
@@ -2846,6 +2919,35 @@ async function workflowFinishIteration() {
     } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
 }
 
+// ── Save & Train actions (post-workflow) ─────────────────
+async function workflowSaveData() {
+    showLoading("Saving prepared data…");
+    try {
+        const res = await API.post("/api/data/finalize");
+        hideLoading();
+        if (res.status === "ok") {
+            showToast("Success", "Data saved and finalized!", "success");
+        } else {
+            showToast("Error", res.message || "Failed to save data", "error");
+        }
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
+async function workflowSaveAndTrain() {
+    showLoading("Saving data & preparing for training…");
+    try {
+        const res = await API.post("/api/data/finalize");
+        hideLoading();
+        if (res.status === "ok") {
+            showToast("Success", "Data finalized! Navigating to training…", "success");
+            // Navigate to training section
+            setTimeout(() => navigateTo("training"), 500);
+        } else {
+            showToast("Error", res.message || "Failed to finalize data", "error");
+        }
+    } catch (e) { hideLoading(); showToast("Error", "" + e, "error"); }
+}
+
 // ── State rendering ──────────────────────────────────────
 function renderWorkflowState(state) {
     if (!state || state.status === "none") return;
@@ -2871,6 +2973,9 @@ function renderWorkflowState(state) {
     document.getElementById("wfIteration").textContent = `${state.current_iteration} / ${state.max_iterations}`;
     const shape = state.current_shape || {};
     document.getElementById("wfShape").textContent = shape.rows ? `${shape.rows.toLocaleString()} × ${shape.columns}` : "—";
+
+    // ── Progress Bar & Activity Feed ──
+    updateWorkflowProgress(state);
 
     // Button visibility
     const isRunning = state.status === "running";
@@ -2900,6 +3005,169 @@ function renderWorkflowState(state) {
 
     // Render LLM content
     renderWorkflowLLM(state);
+
+    // Show finalize card when workflow completed successfully
+    const finalizeCard = document.getElementById("workflowFinalizeCard");
+    if (finalizeCard) {
+        if (state.status === "completed") {
+            finalizeCard.classList.remove("d-none");
+            // Populate final metrics
+            document.getElementById("wfFinalQuality").textContent = state.current_quality_score + "/100";
+            const fs = state.current_shape || {};
+            document.getElementById("wfFinalShape").textContent = fs.rows ? `${fs.rows.toLocaleString()} × ${fs.columns}` : "—";
+            document.getElementById("wfFinalIterations").textContent = state.current_iteration;
+            const delta = state.current_quality_score - state.initial_quality_score;
+            const deltaEl = document.getElementById("wfFinalDelta");
+            deltaEl.textContent = (delta >= 0 ? "+" : "") + delta;
+            deltaEl.className = `metric-value ${delta > 0 ? "text-success" : delta < 0 ? "text-danger" : "text-muted"}`;
+        } else {
+            finalizeCard.classList.add("d-none");
+        }
+    }
+
+    // Update dashboard stats when workflow modifies data
+    if (state.current_shape) {
+        const r = document.getElementById("statRows");
+        const c = document.getElementById("statCols");
+        if (r) r.textContent = state.current_shape.rows?.toLocaleString() || "—";
+        if (c) c.textContent = state.current_shape.columns?.toLocaleString() || "—";
+    }
+}
+
+function updateWorkflowProgress(state) {
+    const progressSection = document.getElementById("workflowProgressSection");
+    const progressBar = document.getElementById("wfProgressBar");
+    const progressText = document.getElementById("wfProgressText");
+    const activityCard = document.getElementById("workflowActivityCard");
+    const activityTitle = document.getElementById("wfActivityTitle");
+    const activityDesc = document.getElementById("wfActivityDesc");
+    const activityStep = document.getElementById("wfActivityStep");
+    const activityTime = document.getElementById("wfActivityTime");
+    const activityIcon = activityCard.querySelector(".activity-icon i");
+
+    // Get current iteration
+    const lastIter = state.iterations?.length > 0 ? state.iterations[state.iterations.length - 1] : null;
+    if (!lastIter || !lastIter.steps) {
+        progressSection.classList.add("d-none");
+        return;
+    }
+
+    // Show progress section
+    progressSection.classList.remove("d-none");
+
+    // Calculate progress
+    const steps = lastIter.steps || [];
+    const totalSteps = steps.length;
+    const completedSteps = steps.filter(s => s.status === "completed").length;
+    const skippedSteps = steps.filter(s => s.status === "skipped").length;
+    const failedSteps = steps.filter(s => s.status === "failed").length;
+    const progressPercent = totalSteps > 0 ? Math.round(((completedSteps + skippedSteps) / totalSteps) * 100) : 0;
+
+    // Update progress bar
+    progressBar.style.width = progressPercent + "%";
+    progressBar.setAttribute("aria-valuenow", progressPercent);
+    progressText.textContent = `${progressPercent}% (${completedSteps + skippedSteps}/${totalSteps} steps)`;
+
+    // Change bar color based on status
+    progressBar.className = "progress-bar progress-bar-striped";
+    if (state.status === "running") {
+        progressBar.classList.add("progress-bar-animated", "bg-success");
+    } else if (state.status === "completed") {
+        progressBar.classList.add("bg-success");
+    } else if (state.status === "failed") {
+        progressBar.classList.add("bg-danger");
+    } else if (state.status === "aborted") {
+        progressBar.classList.add("bg-warning");
+    } else {
+        progressBar.classList.add("bg-info");
+    }
+
+    // Find current/last active step for activity feed
+    const runningStep = steps.find(s => s.status === "running");
+    const lastCompletedStep = steps.filter(s => s.status === "completed").pop();
+    const lastFailedStep = steps.filter(s => s.status === "failed").pop();
+    const nextPendingStep = steps.find(s => s.status === "pending");
+
+    // Determine activity message
+    let title = "Workflow in progress...";
+    let desc = "Processing your data pipeline";
+    let stepBadge = `Step ${completedSteps + 1}/${totalSteps}`;
+    let icon = "fa-cog fa-spin";
+    let timeText = "—";
+
+    if (state.status === "completed") {
+        title = "Workflow completed successfully! 🎉";
+        desc = "All data preparation steps have been executed";
+        icon = "fa-check-circle text-success";
+        stepBadge = `All ${totalSteps} steps completed`;
+        activityIcon.className = "fas " + icon;
+    } else if (state.status === "failed") {
+        title = "Workflow failed";
+        desc = lastFailedStep ? lastFailedStep.error || "An error occurred during execution" : "Execution stopped due to an error";
+        icon = "fa-times-circle text-danger";
+        stepBadge = `Failed at step ${completedSteps + 1}`;
+        activityIcon.className = "fas " + icon;
+    } else if (state.status === "aborted") {
+        title = "Workflow aborted";
+        desc = "Execution was manually stopped";
+        icon = "fa-stop-circle text-warning";
+        stepBadge = `Stopped at ${completedSteps}/${totalSteps}`;
+        activityIcon.className = "fas " + icon;
+    } else if (runningStep) {
+        // Currently executing a step
+        const stepTypeNames = {
+            data_analysis: "Analyzing Data Quality",
+            data_cleaning: "Cleaning Data",
+            feature_engineering: "Engineering Features",
+            transformations: "Applying Transformations",
+            dimensionality_reduction: "Reducing Dimensionality",
+            evaluation: "Evaluating Results",
+        };
+        title = stepTypeNames[runningStep.step_type] || runningStep.title;
+        desc = runningStep.description || "Executing step...";
+        stepBadge = `Step ${completedSteps + 1}/${totalSteps}`;
+        icon = "fa-cog fa-spin text-primary";
+        activityIcon.className = "fas " + icon;
+        
+        // Calculate elapsed time if step has started
+        if (runningStep.started_at) {
+            const elapsed = Date.now() / 1000 - runningStep.started_at;
+            timeText = `${elapsed.toFixed(1)}s elapsed`;
+        }
+    } else if (lastCompletedStep && nextPendingStep) {
+        // Between steps
+        title = "Preparing next step...";
+        const stepTypeNames = {
+            data_analysis: "Data Analysis",
+            data_cleaning: "Data Cleaning",
+            feature_engineering: "Feature Engineering",
+            transformations: "Transformations",
+            dimensionality_reduction: "Dimensionality Reduction",
+            evaluation: "Evaluation",
+        };
+        desc = `Next: ${stepTypeNames[nextPendingStep.step_type] || nextPendingStep.title}`;
+        stepBadge = `Step ${completedSteps + 1}/${totalSteps}`;
+        icon = "fa-hourglass-half text-info";
+        activityIcon.className = "fas " + icon;
+    } else if (lastCompletedStep) {
+        // All done (last step completed)
+        title = "Finishing up...";
+        desc = "Finalizing workflow execution";
+        stepBadge = `${completedSteps}/${totalSteps} completed`;
+        icon = "fa-check-circle text-success";
+        activityIcon.className = "fas " + icon;
+    } else if (state.status === "planning") {
+        title = "Planning workflow...";
+        desc = "AI is analyzing your data and planning the optimal pipeline";
+        stepBadge = "Initializing";
+        icon = "fa-brain fa-pulse text-info";
+        activityIcon.className = "fas " + icon;
+    }
+
+    activityTitle.textContent = title;
+    activityDesc.textContent = desc;
+    activityStep.textContent = stepBadge;
+    activityTime.textContent = timeText;
 }
 
 function renderWorkflowTimeline(state) {

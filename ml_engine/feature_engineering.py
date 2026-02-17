@@ -6,6 +6,8 @@ features, and custom binning.  Each method returns a new DataFrame.
 """
 
 import logging
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import PolynomialFeatures
@@ -70,7 +72,7 @@ class FeatureEngineer:
         - Max 1000 output features
         """
         df = df.copy()
-        valid = [c for c in columns if c in df.columns and np.issubdtype(df[c].dtype, np.number)]  # type: ignore
+        valid = [c for c in columns if c in df.columns and pd.api.types.is_numeric_dtype(df[c])]
         if not valid:
             return df
         
@@ -161,7 +163,7 @@ class FeatureEngineer:
     def log_transform(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         df = df.copy()
         for col in columns:
-            if col in df.columns and np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
                 df[f"{col}_log"] = np.log1p(df[col].clip(lower=0))
         return df
 
@@ -169,7 +171,7 @@ class FeatureEngineer:
     def sqrt_transform(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         df = df.copy()
         for col in columns:
-            if col in df.columns and np.issubdtype(df[col].dtype, np.number):  # type: ignore
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
                 df[f"{col}_sqrt"] = np.sqrt(df[col].clip(lower=0))
         return df
 
@@ -241,7 +243,7 @@ class FeatureEngineer:
         aggregation: 'sum', 'mean', 'median', 'min', 'max', 'std'
         """
         df = df.copy()
-        valid = [c for c in columns if c in df.columns and np.issubdtype(df[c].dtype, np.number)]  # type: ignore
+        valid = [c for c in columns if c in df.columns and pd.api.types.is_numeric_dtype(df[c])]
         
         if not valid:
             logger.warning("No valid numeric columns found in: %s", columns)
@@ -321,7 +323,8 @@ class FeatureEngineer:
             extracted = df[column].astype(str).str.extract(f'({pattern})', expand=False)
             # If multiple columns returned, take the first one
             if isinstance(extracted, pd.DataFrame):
-                df[new_col_name] = extracted.iloc[:, 0]
+                first_col: pd.Series = extracted.iloc[:, 0]  # type: ignore[call-overload]
+                df[new_col_name] = first_col
             else:
                 df[new_col_name] = extracted
             logger.info("Extracted pattern '%s' from '%s' → '%s'", pattern, column, new_col_name)
@@ -459,7 +462,7 @@ class FeatureEngineer:
         
         try:
             # Build safe namespace with only columns and safe functions
-            safe_dict = {col: df[col] for col in df.columns}
+            safe_dict: dict[str, Any] = {col: df[col] for col in df.columns}
             safe_dict.update({
                 'np': np,
                 'abs': abs,
