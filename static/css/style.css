@@ -809,6 +809,26 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+.results-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.results-table th.sortable:hover {
+    color: var(--accent);
+}
+
+.results-table th.sortable i {
+    margin-left: 4px;
+    font-size: 0.7rem;
+    opacity: 0.5;
+}
+
+.results-table th.sortable:hover i {
+    opacity: 1;
+}
+
 .results-table td {
     padding: 10px 12px;
     border-bottom: 1px solid rgba(42, 45, 62, 0.4);
@@ -816,6 +836,30 @@ body {
 
 .results-table tr:hover td {
     background: var(--bg-card-hover);
+}
+
+/* Ranking styles */
+.results-table tr.table-primary {
+    background: rgba(251, 191, 36, 0.1) !important;
+    border-left: 3px solid #fbbf24;
+}
+
+.results-table tr.table-primary:hover td {
+    background: rgba(251, 191, 36, 0.15) !important;
+}
+
+.results-table .rank-cell {
+    font-weight: 600;
+}
+
+.results-table .test-score-cell {
+    font-weight: 500;
+    color: var(--accent);
+}
+
+.results-table tr.table-primary .test-score-cell {
+    color: #fbbf24;
+    font-weight: 700;
 }
 
 /* ═══════════════════ EXPERIMENT TABLE ═══════════════════ */
@@ -1695,5 +1739,45 @@ body {
 .training-error-card p {
     color: #e2e8f0;
     line-height: 1.6;
+}
+
+/* ═══════════════════ MODEL SELECTION GRID ═══════════════════ */
+.model-category-group {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 12px;
+}
+.model-category-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.model-category-header {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.2);
+}
+.model-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    transition: border-color 0.2s, background 0.2s;
+    height: 100%;
+}
+.model-item:hover {
+    border-color: rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.06);
+}
+.model-item.model-recommended {
+    border-color: rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.06);
+}
+.model-item .form-check-label {
+    cursor: pointer;
+    line-height: 1.4;
 }
 

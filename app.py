@@ -1169,7 +1169,7 @@ def training_auto_fix():
                 "message": f"Successfully applied Label Encoding to {len(existing_cols)} column(s): {', '.join(existing_cols[:5])}",
                 "columns_fixed": existing_cols,
                 "new_shape": {"rows": df_fixed.shape[0], "columns": df_fixed.shape[1]},
-                "encodings": {col: len(mapping) for col, mapping in mappings.items()}
+                "encodings": {col: len(mapping.classes_) if hasattr(mapping, 'classes_') else str(mapping) for col, mapping in mappings.items()}
             })
 
         elif error_type == "datetime_columns":
@@ -1499,7 +1499,63 @@ def evaluate_model():
         results[key] = ModelEvaluator.evaluate(model, X, y, task, feature_names)
         logger.info("Evaluated '%s' on %s set in %.2fs", key, dataset, time.time() - t0)
 
+    # Store evaluation results for ranking
+    store["eval_results"] = results
+    store["eval_dataset"] = dataset
+
     return _ok(results)
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Ranked Model Results
+# ────────────────────────────────────────────────────────────────────
+@app.route("/api/model/ranked-results", methods=["GET"])
+def get_ranked_results():
+    """Get trained models ranked by test performance."""
+    store = _store()
+    task = store.get("task", "classification")
+    eval_results = store.get("eval_results", {})
+    
+    if not eval_results:
+        return _err("No evaluation results available. Please evaluate models first.")
+    
+    # Extract primary metric based on task
+    primary_metric = "accuracy" if task == "classification" else "r2_score"
+    
+    # Build ranked list
+    ranked = []
+    for model_key, result in eval_results.items():
+        if "error" in result:
+            continue
+        
+        metrics = result.get("metrics", {})
+        score = metrics.get(primary_metric)
+        
+        if score is not None:
+            ranked.append({
+                "model_key": model_key,
+                "test_score": score,
+                "task": task,
+                "metrics": metrics,
+                "primary_metric": primary_metric
+            })
+    
+    # Sort by test score (descending - higher is better for both accuracy and r2)
+    ranked.sort(key=lambda x: x["test_score"], reverse=True)
+    
+    # Add rank numbers
+    for idx, model in enumerate(ranked, 1):
+        model["rank"] = idx
+    
+    logger.info("Ranked results: %d models, best=%s (%.4f)",
+                len(ranked), ranked[0]["model_key"] if ranked else "none",
+                ranked[0]["test_score"] if ranked else 0)
+    
+    return _ok({
+        "ranked_models": ranked,
+        "task": task,
+        "primary_metric": primary_metric
+    })
 
 
 # ────────────────────────────────────────────────────────────────────

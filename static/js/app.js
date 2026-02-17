@@ -51,6 +51,63 @@ function hideLoading() {
     document.getElementById("loadingOverlay").style.display = "none";
 }
 
+// ─── Table Sorting Helper ──────────────────────────────
+function addTableSorting() {
+    const table = document.querySelector("#trainingResultsBody .results-table");
+    if (!table) return;
+
+    const headers = table.querySelectorAll("th.sortable");
+    let currentSort = { column: null, ascending: true };
+
+    headers.forEach(header => {
+        header.style.cursor = "pointer";
+        header.addEventListener("click", () => {
+            const column = header.dataset.column;
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+
+            // Toggle sort direction if same column
+            if (currentSort.column === column) {
+                currentSort.ascending = !currentSort.ascending;
+            } else {
+                currentSort.column = column;
+                currentSort.ascending = true;
+            }
+
+            // Update sort icons
+            headers.forEach(h => {
+                const icon = h.querySelector("i");
+                if (h === header) {
+                    icon.className = currentSort.ascending ? "fas fa-sort-up" : "fas fa-sort-down";
+                } else {
+                    icon.className = "fas fa-sort";
+                }
+            });
+
+            // Sort rows
+            rows.sort((a, b) => {
+                let aVal, bVal;
+
+                if (column === "model_key") {
+                    aVal = a.dataset.model || "";
+                    bVal = b.dataset.model || "";
+                    return currentSort.ascending 
+                        ? aVal.localeCompare(bVal)
+                        : bVal.localeCompare(aVal);
+                } else if (column === "train_score" || column === "val_score") {
+                    aVal = parseFloat(a.dataset[column.replace("_", "")] || 0);
+                    bVal = parseFloat(b.dataset[column.replace("_", "")] || 0);
+                    return currentSort.ascending ? aVal - bVal : bVal - aVal;
+                }
+                return 0;
+            });
+
+            // Re-append sorted rows
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+}
+
 // ─── Progress Bar Helpers ───────────────────────────────
 let progressState = {
     title: "",
@@ -1610,6 +1667,7 @@ function updateModelCheckboxes() {
         Object.entries(categories).forEach(([catName, models]) => {
             html += `<div class="model-category-group mb-3">`;
             html += `<div class="model-category-header"><i class="fas fa-layer-group me-1"></i>${catName}</div>`;
+            html += `<div class="row g-2">`;
 
             Object.entries(models).forEach(([key, meta]) => {
                 const isRecommended = _aiRecommendedKeys.includes(key);
@@ -1618,16 +1676,18 @@ function updateModelCheckboxes() {
                     : '';
                 const complexityBadge = `<span class="badge ${meta.complexity === 'low' ? 'bg-info' : meta.complexity === 'medium' ? 'bg-warning text-dark' : 'bg-danger'}" style="font-size:0.55rem">${meta.complexity}</span>`;
 
-                html += `<div class="form-check model-item ${isRecommended ? 'model-recommended' : ''} mb-2">
-                    <input class="form-check-input model-cb" type="checkbox" value="${key}" id="mc-${key}" ${isRecommended ? 'checked' : ''}>
-                    <label class="form-check-label d-block" for="mc-${key}">
-                        <span class="fw-bold">${meta.name}</span> ${complexityBadge} ${recBadge}
-                        <br><small class="text-muted">${meta.desc}</small>
-                    </label>
+                html += `<div class="col-md-6 col-lg-4">
+                    <div class="form-check model-item ${isRecommended ? 'model-recommended' : ''}">
+                        <input class="form-check-input model-cb" type="checkbox" value="${key}" id="mc-${key}" ${isRecommended ? 'checked' : ''}>
+                        <label class="form-check-label d-block" for="mc-${key}">
+                            <span class="fw-bold">${meta.name}</span> ${complexityBadge} ${recBadge}
+                            <br><small class="text-muted">${meta.desc}</small>
+                        </label>
+                    </div>
                 </div>`;
             });
 
-            html += `</div>`;
+            html += `</div></div>`;
         });
 
         if (!html) {
@@ -1774,7 +1834,18 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
     // Render results table
     document.getElementById("trainingResultsCard").style.display = "block";
     let html = `<div class="mb-2"><small class="text-muted">Train: ${split_info.train_size} | Val: ${split_info.val_size} | Test: ${split_info.test_size}</small></div>`;
-    html += `<table class="results-table"><thead><tr><th>Model</th><th>Train Score</th><th>Val Score</th><th>Time (s)</th><th>Status</th><th>Actions</th></tr></thead><tbody>`;
+    html += `<table class="results-table">
+        <thead>
+            <tr>
+                <th class="sortable" data-column="model_key">Model <i class="fas fa-sort"></i></th>
+                <th class="sortable" data-column="train_score">Train Score <i class="fas fa-sort"></i></th>
+                <th class="sortable" data-column="val_score">Val Score <i class="fas fa-sort"></i></th>
+                <th>Time (s)</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="trainingTableBody">`;
     results.forEach(r => {
         const status = r.status === "success"
             ? '<span class="badge bg-success">OK</span>'
@@ -1782,7 +1853,7 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
         const actions = r.status === "success"
             ? `<button class="btn btn-outline-primary btn-sm save-exp-btn" data-model="${r.model_key}" data-train="${r.train_score}" data-val="${r.val_score}"><i class="fas fa-save"></i></button>`
             : '';
-        html += `<tr>
+        html += `<tr data-train="${r.train_score ?? 0}" data-val="${r.val_score ?? 0}" data-model="${r.model_key}">
             <td>${r.model_key}</td>
             <td>${r.train_score ?? "—"}</td>
             <td>${r.val_score ?? "—"}</td>
@@ -1793,6 +1864,9 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
     });
     html += '</tbody></table>';
     document.getElementById("trainingResultsBody").innerHTML = html;
+
+    // Add sorting functionality
+    addTableSorting();
 
     // Populate eval / tune selects
     const evalSel = document.getElementById("evalModelSelect");
@@ -2024,6 +2098,11 @@ document.getElementById("evaluateBtn").addEventListener("click", async () => {
 
         State.lastEvalResults = res.data;
         renderEvalResults(res.data);
+        
+        // Update training results table with test scores and rankings
+        if (dataset === "test") {
+            await updateTrainingResultsWithTestScores(res.data);
+        }
     } catch (error) {
         console.error("Evaluation error:", error);
         hideProgress();
@@ -2034,6 +2113,15 @@ document.getElementById("evaluateBtn").addEventListener("click", async () => {
 function renderEvalResults(data) {
     const container = document.getElementById("evalResults");
     let html = "";
+
+    // Add a button to show ranked results
+    html += `<div class="mb-3">
+        <button class="btn btn-primary" id="showRankingsBtn">
+            <i class="fas fa-trophy me-2"></i>Show Model Rankings
+        </button>
+    </div>`;
+    html += `<div id="rankingsContainer" style="display:none"></div>`;
+    html += `<div id="evalDetailsContainer">`;
 
     Object.entries(data).forEach(([modelKey, result]) => {
         if (result.error) {
@@ -2070,7 +2158,11 @@ function renderEvalResults(data) {
         html += '</div></div>';
     });
 
+    html += '</div>'; // Close evalDetailsContainer
     container.innerHTML = html;
+
+    // Attach ranking button handler
+    document.getElementById("showRankingsBtn").addEventListener("click", showModelRankings);
 
     // Render charts
     Object.entries(data).forEach(([modelKey, result]) => {
@@ -2132,6 +2224,271 @@ function renderEvalResults(data) {
             }, { responsive: true });
         }
     });
+}
+
+// ─── Show Model Rankings ────────────────────────────────
+async function showModelRankings() {
+    try {
+        showLoading("Loading rankings...");
+        const res = await API.get("/api/model/ranked-results");
+        hideLoading();
+
+        if (res.status !== "ok") {
+            showToast("Error", res.message || "Failed to load rankings", "error");
+            return;
+        }
+
+        const { ranked_models, task, primary_metric } = res.data;
+        
+        if (!ranked_models || ranked_models.length === 0) {
+            showToast("Info", "No models to rank", "info");
+            return;
+        }
+
+        // Display rankings
+        const rankingsContainer = document.getElementById("rankingsContainer");
+        const evalDetailsContainer = document.getElementById("evalDetailsContainer");
+        const showRankingsBtn = document.getElementById("showRankingsBtn");
+
+        // Toggle view
+        if (rankingsContainer.style.display === "none") {
+            rankingsContainer.style.display = "block";
+            evalDetailsContainer.style.display = "none";
+            showRankingsBtn.innerHTML = '<i class="fas fa-list me-2"></i>Show Details';
+
+            // Render rankings table
+            let html = `
+                <div class="card glass-card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-trophy me-2"></i>Model Rankings (by ${primary_metric})
+                    </div>
+                    <div class="card-body">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Model</th>
+                                    <th>Test Score (${primary_metric})</th>
+                                    <th>Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            ranked_models.forEach((model, idx) => {
+                const rankBadge = idx === 0 
+                    ? '<span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> #1</span>'
+                    : idx === 1
+                    ? '<span class="badge bg-secondary"><i class="fas fa-medal"></i> #2</span>'
+                    : idx === 2
+                    ? '<span class="badge bg-secondary"><i class="fas fa-medal"></i> #3</span>'
+                    : `<span class="badge bg-secondary">#${model.rank}</span>`;
+
+                const score = model.test_score.toFixed(4);
+                const scoreClass = idx === 0 ? 'text-warning fw-bold' : '';
+                
+                // Performance bar (scale 0-100%)
+                const percentage = (model.test_score * 100).toFixed(1);
+                const barColor = idx === 0 ? '#fbbf24' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : '#6366f1';
+                
+                html += `
+                    <tr class="${idx === 0 ? 'table-primary' : ''}">
+                        <td>${rankBadge}</td>
+                        <td class="${scoreClass}">${model.model_key}</td>
+                        <td class="${scoreClass}">${score}</td>
+                        <td>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: ${percentage}%; background-color: ${barColor};"
+                                     aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100">
+                                    ${percentage}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // Add ranking chart
+            const modelNames = ranked_models.map(m => m.model_key);
+            const testScores = ranked_models.map(m => m.test_score);
+            const colors = testScores.map((_, idx) => 
+                idx === 0 ? '#fbbf24' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : '#6366f1'
+            );
+
+            html += `<div id="rankingsChart" style="height: 400px;"></div>`;
+            
+            rankingsContainer.innerHTML = html;
+
+            // Plot ranking chart
+            Plotly.newPlot("rankingsChart", [{
+                x: modelNames,
+                y: testScores,
+                type: "bar",
+                marker: { color: colors },
+                text: testScores.map(s => s.toFixed(4)),
+                textposition: "outside",
+            }], {
+                title: { 
+                    text: `Model Rankings by Test ${primary_metric}`, 
+                    font: { color: "#e2e8f0", size: 16 } 
+                },
+                paper_bgcolor: "transparent", 
+                plot_bgcolor: "transparent",
+                font: { color: "#94a3b8" },
+                xaxis: { 
+                    title: "Model",
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: primary_metric.toUpperCase(),
+                    range: [0, Math.max(...testScores) * 1.1]
+                },
+                margin: { t: 50, b: 100, l: 60, r: 20 },
+            }, { responsive: true });
+
+            showToast("Success", `Ranked ${ranked_models.length} models`, "success");
+        } else {
+            rankingsContainer.style.display = "none";
+            evalDetailsContainer.style.display = "block";
+            showRankingsBtn.innerHTML = '<i class="fas fa-trophy me-2"></i>Show Model Rankings';
+        }
+    } catch (error) {
+        console.error("Rankings error:", error);
+        hideLoading();
+        showToast("Error", "Failed to load rankings: " + error.message, "error");
+    }
+}
+
+// ─── Update Training Results with Test Scores ───────────
+async function updateTrainingResultsWithTestScores(evalData) {
+    try {
+        // Get task type to determine primary metric
+        const taskType = document.querySelector('input[name="taskType"]:checked')?.value || "classification";
+        const primaryMetric = taskType === "classification" ? "accuracy" : "r2_score";
+        
+        // Extract test scores and create rankings
+        const modelScores = [];
+        Object.entries(evalData).forEach(([modelKey, result]) => {
+            if (!result.error && result.metrics) {
+                const testScore = result.metrics[primaryMetric];
+                if (testScore !== undefined && testScore !== null) {
+                    modelScores.push({
+                        model_key: modelKey,
+                        test_score: testScore
+                    });
+                }
+            }
+        });
+
+        // Sort by test score (descending)
+        modelScores.sort((a, b) => b.test_score - a.test_score);
+        
+        // Add rank
+        modelScores.forEach((model, idx) => {
+            model.rank = idx + 1;
+        });
+
+        // Update the training results table
+        const trainingTable = document.querySelector("#trainingResultsBody table");
+        if (!trainingTable) return;
+
+        // Check if Test Score column already exists
+        const thead = trainingTable.querySelector("thead tr");
+        if (!thead.querySelector("th:nth-child(4)")?.textContent.includes("Test")) {
+            // Add Test Score and Rank columns to header
+            const thTestScore = document.createElement("th");
+            thTestScore.textContent = "Test Score";
+            const thRank = document.createElement("th");
+            thRank.textContent = "Rank";
+            
+            // Insert before "Time (s)" column
+            const timeHeader = Array.from(thead.querySelectorAll("th")).find(th => th.textContent.includes("Time"));
+            if (timeHeader) {
+                thead.insertBefore(thTestScore, timeHeader);
+                thead.insertBefore(thRank, timeHeader);
+            }
+        }
+
+        // Update table rows with test scores and ranks
+        const tbody = trainingTable.querySelector("tbody");
+        const rows = tbody.querySelectorAll("tr");
+        
+        rows.forEach(row => {
+            const modelKey = row.querySelector("td:first-child")?.textContent;
+            if (!modelKey) return;
+
+            const modelData = modelScores.find(m => m.model_key === modelKey);
+            
+            // Remove existing test score and rank cells if present
+            const existingTestScore = row.querySelector(".test-score-cell");
+            const existingRank = row.querySelector(".rank-cell");
+            if (existingTestScore) existingTestScore.remove();
+            if (existingRank) existingRank.remove();
+
+            if (modelData) {
+                // Create Test Score cell
+                const tdTestScore = document.createElement("td");
+                tdTestScore.className = "test-score-cell";
+                tdTestScore.textContent = modelData.test_score.toFixed(4);
+                
+                // Create Rank cell with badge
+                const tdRank = document.createElement("td");
+                tdRank.className = "rank-cell";
+                
+                let rankBadge;
+                if (modelData.rank === 1) {
+                    rankBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> #1</span>';
+                    row.classList.add("table-primary");
+                } else if (modelData.rank === 2) {
+                    rankBadge = '<span class="badge bg-secondary"><i class="fas fa-medal"></i> #2</span>';
+                } else if (modelData.rank === 3) {
+                    rankBadge = '<span class="badge bg-secondary"><i class="fas fa-medal"></i> #3</span>';
+                } else {
+                    rankBadge = `<span class="badge bg-secondary">#${modelData.rank}</span>`;
+                }
+                tdRank.innerHTML = rankBadge;
+
+                // Insert before Time column
+                const timeCell = Array.from(row.querySelectorAll("td")).find(td => 
+                    !isNaN(parseFloat(td.textContent)) && td !== row.querySelector("td:nth-child(2)") && td !== row.querySelector("td:nth-child(3)")
+                );
+                
+                if (timeCell) {
+                    row.insertBefore(tdTestScore, timeCell);
+                    row.insertBefore(tdRank, timeCell);
+                } else {
+                    // If Time cell not found, insert before Status
+                    const statusCell = row.querySelector("td:nth-last-child(2)");
+                    if (statusCell) {
+                        row.insertBefore(tdTestScore, statusCell);
+                        row.insertBefore(tdRank, statusCell);
+                    }
+                }
+            }
+        });
+
+        // Sort rows by rank
+        const sortedRows = Array.from(rows).sort((a, b) => {
+            const rankA = parseInt(a.querySelector(".rank-cell span")?.textContent.match(/\d+/)?.[0] || "999");
+            const rankB = parseInt(b.querySelector(".rank-cell span")?.textContent.match(/\d+/)?.[0] || "999");
+            return rankA - rankB;
+        });
+
+        // Re-append rows in sorted order
+        sortedRows.forEach(row => tbody.appendChild(row));
+
+        showToast("Updated", "Training results updated with test scores and rankings", "success");
+    } catch (error) {
+        console.error("Error updating training results:", error);
+    }
 }
 
 // ════════════════════════════════════════════════════════
