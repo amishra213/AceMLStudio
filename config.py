@@ -150,7 +150,7 @@ class Config:
     DEFAULT_CV_FOLDS = 5
     DEFAULT_RANDOM_STATE = 42
 
-    # Supported classification models
+    # Supported classification models (with categories)
     CLASSIFICATION_MODELS = {
         "logistic_regression": "Logistic Regression",
         "decision_tree_clf": "Decision Tree",
@@ -162,7 +162,7 @@ class Config:
         "mlp_clf": "Neural Network (MLP)",
     }
 
-    # Supported regression models
+    # Supported regression models (with categories)
     REGRESSION_MODELS = {
         "linear_regression": "Linear Regression",
         "decision_tree_reg": "Decision Tree",
@@ -172,6 +172,68 @@ class Config:
         "svr_reg": "SVR",
         "knn_reg": "K-Nearest Neighbors",
         "mlp_reg": "Neural Network (MLP)",
+    }
+
+    # Unsupervised models (no target needed)
+    UNSUPERVISED_MODELS = {
+        "kmeans": "K-Means Clustering",
+        "dbscan": "DBSCAN",
+        "agglomerative": "Agglomerative Clustering",
+        "pca_model": "PCA (Analysis)",
+        "isolation_forest": "Isolation Forest (Anomaly)",
+    }
+
+    # Categorized model metadata for UI
+    MODEL_CATEGORIES = {
+        "classification": {
+            "Linear Models": {
+                "logistic_regression": {"name": "Logistic Regression", "desc": "Simple, fast, interpretable. Great baseline for binary/multiclass problems.", "complexity": "low"},
+            },
+            "Tree-Based": {
+                "decision_tree_clf": {"name": "Decision Tree", "desc": "Easy to understand, visualize. Can overfit on complex data.", "complexity": "low"},
+                "random_forest_clf": {"name": "Random Forest", "desc": "Ensemble of trees. Robust, handles non-linear patterns well.", "complexity": "medium"},
+                "gradient_boosting_clf": {"name": "Gradient Boosting", "desc": "Powerful boosting method. Often strong performance.", "complexity": "medium"},
+                "xgboost_clf": {"name": "XGBoost", "desc": "Industry standard. Fast, regularized, excellent accuracy.", "complexity": "medium"},
+            },
+            "Distance-Based": {
+                "knn_clf": {"name": "K-Nearest Neighbors", "desc": "Simple, no training phase. Slow on large datasets.", "complexity": "low"},
+                "svm_clf": {"name": "SVM", "desc": "Effective in high-dim spaces. Slow on large datasets.", "complexity": "high"},
+            },
+            "Neural Networks": {
+                "mlp_clf": {"name": "Neural Network (MLP)", "desc": "Multi-layer perceptron. Learns complex patterns, needs more data.", "complexity": "high"},
+            },
+        },
+        "regression": {
+            "Linear Models": {
+                "linear_regression": {"name": "Linear Regression", "desc": "Simple, fast, interpretable. Assumes linear relationships.", "complexity": "low"},
+            },
+            "Tree-Based": {
+                "decision_tree_reg": {"name": "Decision Tree", "desc": "Captures non-linear patterns. Can overfit without pruning.", "complexity": "low"},
+                "random_forest_reg": {"name": "Random Forest", "desc": "Ensemble method. Robust predictions, handles outliers.", "complexity": "medium"},
+                "gradient_boosting_reg": {"name": "Gradient Boosting", "desc": "Sequentially corrects errors. Often best for tabular data.", "complexity": "medium"},
+                "xgboost_reg": {"name": "XGBoost", "desc": "Optimized gradient boosting. Fast, regularized.", "complexity": "medium"},
+            },
+            "Distance-Based": {
+                "knn_reg": {"name": "K-Nearest Neighbors", "desc": "Predicts using nearby data points. Good for small datasets.", "complexity": "low"},
+                "svr_reg": {"name": "SVR", "desc": "Support Vector Regression. Good with high-dimensional features.", "complexity": "high"},
+            },
+            "Neural Networks": {
+                "mlp_reg": {"name": "Neural Network (MLP)", "desc": "Learns complex non-linear mappings. Needs sufficient data.", "complexity": "high"},
+            },
+        },
+        "unsupervised": {
+            "Clustering": {
+                "kmeans": {"name": "K-Means", "desc": "Partition data into K groups. Fast, widely used.", "complexity": "low"},
+                "dbscan": {"name": "DBSCAN", "desc": "Density-based clustering. Finds arbitrary shapes, handles noise.", "complexity": "medium"},
+                "agglomerative": {"name": "Agglomerative", "desc": "Hierarchical clustering. Builds tree of clusters.", "complexity": "medium"},
+            },
+            "Dimensionality Reduction": {
+                "pca_model": {"name": "PCA (Analysis)", "desc": "Reduce features while preserving variance. Great for visualization.", "complexity": "low"},
+            },
+            "Anomaly Detection": {
+                "isolation_forest": {"name": "Isolation Forest", "desc": "Detect outliers/anomalies. Works well on high-dimensional data.", "complexity": "medium"},
+            },
+        },
     }
 
     # ──────────────────────────── Hyperparameter Tuning ─────────────────

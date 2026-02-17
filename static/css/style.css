@@ -1657,3 +1657,43 @@ body {
 #workflowManualOverride .card-body {
     padding: 14px 18px;
 }
+
+/* ═══════════════════ TRAINING ERROR CARD ═══════════════════ */
+.training-error-card {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%);
+    border: 2px solid rgba(251, 191, 36, 0.4);
+    border-radius: 12px;
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-color: rgba(251, 191, 36, 0.4); }
+    50% { border-color: rgba(251, 191, 36, 0.7); }
+}
+
+.training-error-card .error-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(245, 158, 11, 0.25) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.training-error-card .error-icon i {
+    font-size: 1.75rem;
+    color: #fbbf24;
+}
+
+.training-error-card h6 {
+    color: #fbbf24;
+    font-weight: 600;
+}
+
+.training-error-card p {
+    color: #e2e8f0;
+    line-height: 1.6;
+}
+

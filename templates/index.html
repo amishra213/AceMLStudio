@@ -54,16 +54,17 @@
                     <i class="fas fa-compress-arrows-alt"></i><span>Reduce Dimensions</span>
                 </a>
                 <div class="nav-group-label">MODELING</div>
-                <a class="nav-item" data-section="training" href="#" title="Train machine learning models on your data">
+                <a class="nav-item nav-item-primary" data-section="training" href="#" title="Train machine learning models on your data">
                     <i class="fas fa-brain"></i><span>Train Models</span>
+                    <span class="badge bg-success ms-auto" style="font-size:0.6rem">AI GUIDED</span>
                 </a>
-                <a class="nav-item" data-section="evaluation" href="#" title="Evaluate model performance with metrics and visualizations">
+                <a class="nav-item nav-item-sub" data-section="evaluation" href="#" title="Evaluate model performance with metrics and visualizations">
                     <i class="fas fa-chart-bar"></i><span>Evaluation</span>
                 </a>
-                <a class="nav-item" data-section="visualize" href="#" title="Create charts and plots to understand data and model performance">
+                <a class="nav-item nav-item-sub" data-section="visualize" href="#" title="Create charts and plots to understand data and model performance">
                     <i class="fas fa-chart-line"></i><span>Visualizations</span>
                 </a>
-                <a class="nav-item" data-section="tuning" href="#" title="Optimize model settings for better performance">
+                <a class="nav-item nav-item-sub" data-section="tuning" href="#" title="Optimize model settings for better performance">
                     <i class="fas fa-sliders-h"></i><span>Tuning</span>
                 </a>
                 <div class="nav-group-label">TRACKING</div>
@@ -1259,42 +1260,134 @@
                                 <li><strong>Validation set:</strong> Used to tune and improve the model (10-15%)</li>
                                 <li><strong>Test set:</strong> Final exam to see how well it really works (10-20%)</li>
                             </ul>
-                            <p><strong>Think of it like:</strong> Training = studying for a test, Validation = practice tests, Test = the actual exam.</p>
                             <p><strong>Multiple models:</strong> Different algorithms work better for different problems. The system will try several and show you which performs best.</p>
-                            <p><strong>Common models:</strong></p>
-                            <ul>
-                                <li><strong>Logistic Regression:</strong> Simple, fast, good baseline</li>
-                                <li><strong>Random Forest:</strong> Powerful, handles complex patterns</li>
-                                <li><strong>XGBoost/LightGBM:</strong> Often best performance, industry standard</li>
-                                <li><strong>Neural Networks:</strong> Very powerful for complex data</li>
-                            </ul>
+                            <p><strong>Supervised:</strong> Classification (predict categories) and Regression (predict numbers) — needs a target column.</p>
+                            <p><strong>Unsupervised:</strong> Clustering, anomaly detection, dimensionality reduction — no target needed.</p>
                         </div>
                     </div>
-                    <h6 class="mb-4">Model Training</h6>
-                    <div class="row g-4">
-                        <div class="col-lg-5">
-                            <div class="card glass-card">
-                                <div class="card-header">Select Models</div>
-                                <div class="card-body">
-                                    <div class="mb-3" id="modelCheckboxes"></div>
-                                    <div class="row g-2 mb-3">
-                                        <div class="col-6">
-                                            <label class="form-label small">Test Size</label>
-                                            <input type="number" class="form-control form-control-sm" id="testSize" value="0.2" step="0.05" min="0.05" max="0.5" title="Fraction of data reserved for final testing (0.2 = 20%)">
-                                            <div class="control-description">% of data for final testing (default: 20%). Never seen by model during training.</div>
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label small">Val Size</label>
-                                            <input type="number" class="form-control form-control-sm" id="valSize" value="0.1" step="0.05" min="0.05" max="0.3" title="Fraction of data used for validation during training (0.1 = 10%)">
-                                            <div class="control-description">% of data for validation (default: 10%). Used to monitor training progress.</div>
-                                        </div>
+
+                    <!-- ── AI Recommendation Banner ── -->
+                    <div class="card training-recommend-card mb-4 d-none" id="trainingRecommendCard">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start">
+                                <div class="recommend-icon me-3">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0 text-info"><i class="fas fa-lightbulb me-1"></i>AI Model Recommendations</h6>
+                                        <button class="btn btn-sm btn-outline-info" id="btnGetRecommendations" onclick="getModelRecommendations()">
+                                            <i class="fas fa-sync me-1"></i>Refresh
+                                        </button>
                                     </div>
-                                    <button class="btn btn-success w-100" id="trainBtn" title="Train all selected models on your prepared dataset"><i class="fas fa-play me-1"></i>Train Selected Models</button>
-                                    <div class="control-description mt-2">Training may take 1-10 minutes depending on data size and number of models selected. You'll get a comparison of all models.</div>
+                                    <div id="recommendationContent">
+                                        <p class="text-muted mb-0 small">Click "Get AI Recommendations" below to analyze your data and get model suggestions.</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- ── Training Configuration ── -->
+                    <div class="row g-4">
+                        <div class="col-lg-5">
+                            <!-- Task Type & Target -->
+                            <div class="card glass-card mb-3">
+                                <div class="card-header"><i class="fas fa-crosshairs me-2"></i>Task Configuration</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Learning Type</label>
+                                        <div class="training-type-tabs">
+                                            <div class="btn-group w-100" role="group">
+                                                <input type="radio" class="btn-check" name="taskCategory" id="taskCatSupervised" value="supervised" checked>
+                                                <label class="btn btn-outline-primary btn-sm" for="taskCatSupervised"><i class="fas fa-bullseye me-1"></i>Supervised</label>
+                                                <input type="radio" class="btn-check" name="taskCategory" id="taskCatUnsupervised" value="unsupervised">
+                                                <label class="btn btn-outline-primary btn-sm" for="taskCatUnsupervised"><i class="fas fa-project-diagram me-1"></i>Unsupervised</label>
+                                            </div>
+                                        </div>
+                                        <div class="control-description">Supervised = predict a target column. Unsupervised = discover patterns (no target needed).</div>
+                                    </div>
+                                    <div id="supervisedOptions">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold">Task Type</label>
+                                            <div class="btn-group w-100" role="group">
+                                                <input type="radio" class="btn-check" name="taskType" id="taskClassification" value="classification" checked>
+                                                <label class="btn btn-outline-primary btn-sm" for="taskClassification"><i class="fas fa-tags me-1"></i>Classification</label>
+                                                <input type="radio" class="btn-check" name="taskType" id="taskRegression" value="regression">
+                                                <label class="btn btn-outline-primary btn-sm" for="taskRegression"><i class="fas fa-chart-line me-1"></i>Regression</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label small">Test Size</label>
+                                            <input type="number" class="form-control form-control-sm" id="testSize" value="0.2" step="0.05" min="0.05" max="0.5">
+                                            <div class="control-description">% for final testing (20%)</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small">Val Size</label>
+                                            <input type="number" class="form-control form-control-sm" id="valSize" value="0.1" step="0.05" min="0.05" max="0.3">
+                                            <div class="control-description">% for validation (10%)</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-info w-100 mb-2" id="btnAIRecommend" onclick="getModelRecommendations()">
+                                        <i class="fas fa-robot me-1"></i>Get AI Recommendations
+                                    </button>
+                                    <div class="control-description">AI will analyze your data and suggest the best models to try.</div>
+                                </div>
+                            </div>
+
+                            <!-- Model Selection (Categorized) -->
+                            <div class="card glass-card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-th-list me-2"></i>Select Models</span>
+                                    <div>
+                                        <button class="btn btn-xs btn-outline-success" onclick="selectRecommendedModels()" title="Select AI-recommended models">
+                                            <i class="fas fa-magic me-1"></i>AI Pick
+                                        </button>
+                                        <button class="btn btn-xs btn-outline-secondary ms-1" onclick="toggleAllModels(true)" title="Select all">All</button>
+                                        <button class="btn btn-xs btn-outline-secondary ms-1" onclick="toggleAllModels(false)" title="Deselect all">None</button>
+                                    </div>
+                                </div>
+                                <div class="card-body" style="max-height: 420px; overflow-y: auto;">
+                                    <div id="modelCheckboxes">
+                                        <div class="text-muted small text-center py-3">Loading models...</div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <button class="btn btn-success w-100" id="trainBtn"><i class="fas fa-play me-1"></i>Train Selected Models</button>
+                                    <div class="control-description mt-2">Training may take 1-10 minutes. You'll get a comparison of all models.</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="col-lg-7">
+                            <!-- Training Error Card with AI Fix -->
+                            <div class="card training-error-card mb-3" id="trainingErrorCard" style="display:none">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-start">
+                                        <div class="error-icon me-3">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-2 text-warning">
+                                                <i class="fas fa-robot me-1"></i>Training Issue Detected
+                                            </h6>
+                                            <p class="mb-2" id="trainingErrorMessage">Error details...</p>
+                                            <p class="mb-3 text-muted small" id="trainingErrorSuggestion">Suggestion...</p>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-warning" id="trainingFixBtn">
+                                                    <i class="fas fa-magic me-1"></i>AI Auto-Fix & Retry Training
+                                                </button>
+                                                <button class="btn btn-outline-secondary" id="trainingDismissBtn">
+                                                    Dismiss
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="card glass-card" id="trainingResultsCard" style="display:none">
                                 <div class="card-header">Training Results</div>
                                 <div class="card-body" id="trainingResultsBody"></div>

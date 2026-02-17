@@ -1129,6 +1129,136 @@ def finalize_data():
 # ────────────────────────────────────────────────────────────────────
 #  Model Training
 # ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/training/auto-fix", methods=["POST"])
+def training_auto_fix():
+    """AI-assisted auto-fix for training errors (high cardinality, etc.)"""
+    df = _df()
+    if df is None:
+        return _err("No dataset loaded", 404)
+    
+    body = request.get_json(silent=True) or {}
+    error_type = body.get("error_type")
+    problem_columns = body.get("problem_columns", [])
+    target = body.get("target")
+    
+    if not error_type or not problem_columns:
+        return _err("Missing error_type or problem_columns", 400)
+    
+    try:
+        from ml_engine.transformations import DataTransformer
+        
+        if error_type == "high_cardinality":
+            logger.info("Auto-fixing high cardinality: applying label encoding to %d columns", len(problem_columns))
+            
+            # Filter to columns that actually exist
+            existing_cols = [col for col in problem_columns if col in df.columns]
+            if not existing_cols:
+                return _err("Problem columns not found in dataset", 400)
+            
+            # Apply label encoding
+            df_fixed, mappings = DataTransformer.label_encode(df, existing_cols)
+            
+            # Update session dataframe
+            store = _store()
+            store["df"] = df_fixed
+            
+            logger.info("Auto-fix successful: label encoded %d columns", len(existing_cols))
+            return jsonify({
+                "status": "ok",
+                "message": f"Successfully applied Label Encoding to {len(existing_cols)} column(s): {', '.join(existing_cols[:5])}",
+                "columns_fixed": existing_cols,
+                "new_shape": {"rows": df_fixed.shape[0], "columns": df_fixed.shape[1]},
+                "encodings": {col: len(mapping) for col, mapping in mappings.items()}
+            })
+
+        elif error_type == "datetime_columns":
+            logger.info("Auto-fixing datetime columns: converting %d column(s) to numeric features", len(problem_columns))
+            
+            existing_cols = [col for col in problem_columns if col in df.columns]
+            if not existing_cols:
+                return _err("Problem columns not found in dataset", 400)
+            
+            df_fixed = df.copy()
+            converted = []
+            for col in existing_cols:
+                try:
+                    dt_series = pd.to_datetime(df_fixed[col], errors="coerce")
+                    epoch = pd.Timestamp("1970-01-01")
+                    df_fixed[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                    df_fixed[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                    df_fixed[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                    df_fixed[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                    df_fixed[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                    df_fixed = df_fixed.drop(columns=[col])
+                    converted.append(col)
+                    logger.info("Converted datetime '%s' → 5 numeric features", col)
+                except Exception as dt_err:
+                    logger.warning("Failed to convert '%s', dropping: %s", col, dt_err)
+                    df_fixed = df_fixed.drop(columns=[col])
+                    converted.append(col)
+            
+            store = _store()
+            store["df"] = df_fixed
+            
+            return jsonify({
+                "status": "ok",
+                "message": f"Converted {len(converted)} datetime column(s) to numeric features: {', '.join(converted[:5])}",
+                "columns_fixed": converted,
+                "new_shape": {"rows": df_fixed.shape[0], "columns": df_fixed.shape[1]}
+            })
+
+        elif error_type == "non_numeric_columns":
+            logger.info("Auto-fixing non-numeric columns: converting/dropping %d column(s)", len(problem_columns))
+            
+            existing_cols = [col for col in problem_columns if col in df.columns]
+            if not existing_cols:
+                return _err("Problem columns not found in dataset", 400)
+            
+            df_fixed = df.copy()
+            fixed_cols = []
+            for col in existing_cols:
+                dtype = df_fixed[col].dtype
+                # Try datetime conversion first
+                if pd.api.types.is_datetime64_any_dtype(dtype):
+                    try:
+                        dt_series = pd.to_datetime(df_fixed[col], errors="coerce")
+                        epoch = pd.Timestamp("1970-01-01")
+                        df_fixed[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                        df_fixed = df_fixed.drop(columns=[col])
+                        fixed_cols.append(col)
+                        continue
+                    except Exception:
+                        pass
+                # Try label encoding for object columns
+                if dtype == "object" or isinstance(dtype, pd.CategoricalDtype):
+                    try:
+                        df_fixed, _ = DataTransformer.label_encode(df_fixed, [col])
+                        fixed_cols.append(col)
+                        continue
+                    except Exception:
+                        pass
+                # Last resort: drop the column
+                df_fixed = df_fixed.drop(columns=[col])
+                fixed_cols.append(col)
+            
+            store = _store()
+            store["df"] = df_fixed
+            
+            return jsonify({
+                "status": "ok",
+                "message": f"Fixed {len(fixed_cols)} non-numeric column(s): {', '.join(fixed_cols[:5])}",
+                "columns_fixed": fixed_cols,
+                "new_shape": {"rows": df_fixed.shape[0], "columns": df_fixed.shape[1]}
+            })
+
+        else:
+            return _err(f"Unknown error_type: {error_type}", 400)
+            
+    except Exception as e:
+        logger.error("Auto-fix failed: %s", e, exc_info=True)
+        return _err(f"Auto-fix failed: {str(e)}")
+
 @app.route("/api/model/train", methods=["POST"])
 def train_model():
     df = _df()
@@ -1192,6 +1322,47 @@ def train_model():
         logger.error("Training blocked: %s", error_msg)
         return _err(error_msg, 400)
 
+    # AUTO-CONVERT datetime columns to numeric features
+    datetime_cols = X.select_dtypes(include=["datetime64", "datetimetz"]).columns.tolist()
+    if datetime_cols:
+        logger.info("Auto-converting %d datetime column(s) to numeric features: %s", len(datetime_cols), datetime_cols[:5])
+        for col in datetime_cols:
+            try:
+                dt_series = pd.to_datetime(X[col], errors="coerce")
+                # Extract useful numeric features from datetime
+                X[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                X[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                X[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                X[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                # Also create ordinal (days since epoch) for continuous representation
+                epoch = pd.Timestamp("1970-01-01")
+                X[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                # Drop original datetime column
+                X = X.drop(columns=[col])
+                logger.info("Converted datetime '%s' → 5 numeric features (year, month, day, dayofweek, ordinal)", col)
+            except Exception as dt_err:
+                logger.warning("Failed to convert datetime column '%s', dropping it: %s", col, dt_err)
+                X = X.drop(columns=[col])
+
+    # Also check for object columns that look like dates (string dates)
+    for col in X.select_dtypes(include=["object"]).columns:
+        try:
+            sample = X[col].dropna().head(20)
+            if len(sample) > 0:
+                parsed = pd.to_datetime(sample, errors="coerce")
+                if parsed.notna().sum() > len(sample) * 0.8:  # >80% parse as dates
+                    logger.info("Detected string-date column '%s', converting to numeric features", col)
+                    dt_series = pd.to_datetime(X[col], errors="coerce")
+                    epoch = pd.Timestamp("1970-01-01")
+                    X[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                    X[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                    X[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                    X[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                    X[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                    X = X.drop(columns=[col])
+        except Exception:
+            pass  # Not a date column, skip
+
     # Auto-encode remaining object columns WITH CARDINALITY CHECKS
     obj_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     if obj_cols:
@@ -1212,15 +1383,23 @@ def train_model():
                 total_new_features += n_unique - 1  # -1 for drop_first
         
         if high_cardinality_cols:
+            # Extract column names without unique counts
+            problem_cols = [col.split(' (')[0] for col in high_cardinality_cols]
             error_msg = (
                 f"Cannot train: {len(high_cardinality_cols)} categorical column(s) have too many unique values "
                 f"for safe one-hot encoding: {', '.join(high_cardinality_cols[:3])}{'...' if len(high_cardinality_cols) > 3 else ''}. "
                 f"\n\nThis would create {total_new_features + sum(int(c.split('(')[1].split()[0].replace(',', '')) for c in high_cardinality_cols):,}+ features and cause memory overflow. "
-                f"\n\nSOLUTION: Go to 'Transformations' page and apply 'Label Encoding' or 'Target Encoding' "
-                f"to these columns BEFORE training, or drop them if not needed."
+                f"\n\nSOLUTION: Use AI Auto-Fix to apply Label Encoding, or manually fix in Transformations page."
             )
             logger.error("Training blocked due to high cardinality: %s", error_msg)
-            return _err(error_msg, 400)
+            return jsonify({
+                "status": "error",
+                "message": error_msg,
+                "error_type": "high_cardinality",
+                "fixable": True,
+                "problem_columns": problem_cols,
+                "suggestion": "Apply Label Encoding to high-cardinality columns"
+            }), 400
         
         # Check total features after encoding
         final_feature_count = X.shape[1] - len(safe_to_encode) + total_new_features
@@ -1239,6 +1418,12 @@ def train_model():
             X = pd.get_dummies(X, columns=safe_to_encode, drop_first=True)
         else:
             logger.info("No categorical columns to encode (all are numeric or already encoded)")
+
+    # FINAL SAFETY CHECK: ensure no non-numeric columns remain
+    non_numeric = X.select_dtypes(exclude=["number", "bool"]).columns.tolist()
+    if non_numeric:
+        logger.warning("Dropping %d remaining non-numeric columns before training: %s", len(non_numeric), non_numeric[:10])
+        X = X.drop(columns=non_numeric)
 
     X = X.fillna(0)
     logger.info("Final training feature matrix: %d rows × %d features", X.shape[0], X.shape[1])
@@ -2026,12 +2211,160 @@ def reset_session():
 
 
 # ────────────────────────────────────────────────────────────────────
-#  Available Models
+#  Available Models (categorized)
 # ────────────────────────────────────────────────────────────────────
 @app.route("/api/models")
 def available_models():
     task = request.args.get("task", "classification")
     return _ok(ModelTrainer.get_available_models(task))
+
+
+@app.route("/api/models/categorized")
+def available_models_categorized():
+    """Return models grouped by category with metadata."""
+    task = request.args.get("task", "classification")
+    categories = Config.MODEL_CATEGORIES.get(task, {})
+    return _ok(categories)
+
+
+@app.route("/api/models/recommend", methods=["POST"])
+def recommend_models():
+    """AI-based model recommendation based on dataset characteristics."""
+    df = _df()
+    if df is None:
+        return _err("No dataset loaded", 404)
+
+    body = request.get_json(silent=True) or {}
+    target = body.get("target") or _store().get("target")
+    task = body.get("task") or _store().get("task", "classification")
+
+    try:
+        n_rows, n_cols = df.shape
+        n_numeric = len(df.select_dtypes(include=["number"]).columns)
+        n_cat = len(df.select_dtypes(include=["object", "category"]).columns)
+        n_classes = df[target].nunique() if target and target in df.columns else 0
+        has_missing = int(df.isnull().any().sum())
+        is_imbalanced = False
+
+        if task == "classification" and target and target in df.columns:
+            vc = df[target].value_counts(normalize=True)
+            is_imbalanced = vc.min() < 0.15
+
+        # Rule-based recommendations
+        recommendations = []
+        all_models = Config.MODEL_CATEGORIES.get(task, {})
+
+        if task in ("classification", "regression"):
+            # Always recommend: strong baseline
+            if task == "classification":
+                recommendations.append({
+                    "key": "random_forest_clf",
+                    "name": "Random Forest",
+                    "reason": "Robust, handles mixed features well, minimal tuning needed. Best starting model for most datasets.",
+                    "priority": 1,
+                })
+                if n_rows > 1000:
+                    recommendations.append({
+                        "key": "xgboost_clf",
+                        "name": "XGBoost",
+                        "reason": f"Industry standard for tabular data. Your {n_rows:,} rows + {n_cols} features is a good fit.",
+                        "priority": 2,
+                    })
+                if n_rows < 5000 and n_cols < 50:
+                    recommendations.append({
+                        "key": "logistic_regression",
+                        "name": "Logistic Regression",
+                        "reason": "Fast, interpretable baseline. Good for understanding feature importance.",
+                        "priority": 3,
+                    })
+                if n_rows > 5000 and n_cols > 20:
+                    recommendations.append({
+                        "key": "gradient_boosting_clf",
+                        "name": "Gradient Boosting",
+                        "reason": "Strong performance on complex data with many features.",
+                        "priority": 3,
+                    })
+                if n_rows < 2000:
+                    recommendations.append({
+                        "key": "knn_clf",
+                        "name": "K-Nearest Neighbors",
+                        "reason": "Simple and effective for smaller datasets. Easy to interpret.",
+                        "priority": 4,
+                    })
+            else:  # regression
+                recommendations.append({
+                    "key": "random_forest_reg",
+                    "name": "Random Forest",
+                    "reason": "Robust baseline. Handles non-linear relationships without extensive tuning.",
+                    "priority": 1,
+                })
+                if n_rows > 1000:
+                    recommendations.append({
+                        "key": "xgboost_reg",
+                        "name": "XGBoost",
+                        "reason": f"Excellent for tabular regression. {n_rows:,} rows is sufficient for XGBoost.",
+                        "priority": 2,
+                    })
+                recommendations.append({
+                    "key": "linear_regression",
+                    "name": "Linear Regression",
+                    "reason": "Fast interpretable baseline. Reveals linear relationships.",
+                    "priority": 3,
+                })
+                if n_rows > 5000:
+                    recommendations.append({
+                        "key": "gradient_boosting_reg",
+                        "name": "Gradient Boosting",
+                        "reason": "Powerful for complex patterns. Often top performer on tabular data.",
+                        "priority": 3,
+                    })
+
+        elif task == "unsupervised":
+            recommendations.append({
+                "key": "kmeans",
+                "name": "K-Means Clustering",
+                "reason": f"Fast, intuitive grouping. Works well with {n_numeric} numeric features.",
+                "priority": 1,
+            })
+            if n_rows > 500:
+                recommendations.append({
+                    "key": "dbscan",
+                    "name": "DBSCAN",
+                    "reason": "Finds clusters of arbitrary shape. Handles noise well.",
+                    "priority": 2,
+                })
+            recommendations.append({
+                "key": "isolation_forest",
+                "name": "Isolation Forest",
+                "reason": "Useful for anomaly/outlier detection before or after clustering.",
+                "priority": 3,
+            })
+
+        # Sort by priority
+        recommendations.sort(key=lambda x: x["priority"])
+
+        summary = {
+            "task": task,
+            "dataset_info": {
+                "rows": n_rows,
+                "columns": n_cols,
+                "numeric_cols": n_numeric,
+                "categorical_cols": n_cat,
+                "n_classes": n_classes,
+                "has_missing": has_missing,
+                "is_imbalanced": is_imbalanced,
+            },
+            "recommendations": recommendations,
+            "recommended_keys": [r["key"] for r in recommendations[:3]],
+        }
+
+        logger.info("Model recommendations: %s for task=%s, shape=%s",
+                    [r["key"] for r in recommendations], task, df.shape)
+        return _ok(summary)
+
+    except Exception as e:
+        logger.error("Model recommendation failed: %s", e, exc_info=True)
+        return _err(f"Recommendation failed: {str(e)}")
 
 
 # ────────────────────────────────────────────────────────────────────

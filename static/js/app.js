@@ -1589,21 +1589,145 @@ document.getElementById("applyReduceBtn").addEventListener("click", async () => 
 // ════════════════════════════════════════════════════════
 //  MODEL TRAINING
 // ════════════════════════════════════════════════════════
+
+// State for AI recommendations
+let _aiRecommendedKeys = [];
+
+function getActiveTask() {
+    const catVal = document.querySelector('input[name="taskCategory"]:checked')?.value || "supervised";
+    if (catVal === "unsupervised") return "unsupervised";
+    return document.querySelector('input[name="taskType"]:checked')?.value || "classification";
+}
+
 function updateModelCheckboxes() {
-    const task = document.querySelector('input[name="taskType"]:checked')?.value || "classification";
-    API.get(`/api/models?task=${task}`).then(res => {
+    const task = getActiveTask();
+    API.get(`/api/models/categorized?task=${task}`).then(res => {
         if (res.status !== "ok") return;
         const container = document.getElementById("modelCheckboxes");
-        container.innerHTML = "";
-        Object.entries(res.data).forEach(([key, name]) => {
-            container.innerHTML += `
-                <div class="form-check mb-2">
-                    <input class="form-check-input model-cb" type="checkbox" value="${key}" id="mc-${key}">
-                    <label class="form-check-label" for="mc-${key}">${name}</label>
+        let html = "";
+        const categories = res.data;
+
+        Object.entries(categories).forEach(([catName, models]) => {
+            html += `<div class="model-category-group mb-3">`;
+            html += `<div class="model-category-header"><i class="fas fa-layer-group me-1"></i>${catName}</div>`;
+
+            Object.entries(models).forEach(([key, meta]) => {
+                const isRecommended = _aiRecommendedKeys.includes(key);
+                const recBadge = isRecommended
+                    ? '<span class="badge bg-success ms-1" style="font-size:0.6rem">RECOMMENDED</span>'
+                    : '';
+                const complexityBadge = `<span class="badge ${meta.complexity === 'low' ? 'bg-info' : meta.complexity === 'medium' ? 'bg-warning text-dark' : 'bg-danger'}" style="font-size:0.55rem">${meta.complexity}</span>`;
+
+                html += `<div class="form-check model-item ${isRecommended ? 'model-recommended' : ''} mb-2">
+                    <input class="form-check-input model-cb" type="checkbox" value="${key}" id="mc-${key}" ${isRecommended ? 'checked' : ''}>
+                    <label class="form-check-label d-block" for="mc-${key}">
+                        <span class="fw-bold">${meta.name}</span> ${complexityBadge} ${recBadge}
+                        <br><small class="text-muted">${meta.desc}</small>
+                    </label>
                 </div>`;
+            });
+
+            html += `</div>`;
         });
+
+        if (!html) {
+            html = '<div class="text-muted text-center py-3">No models available for this task</div>';
+        }
+        container.innerHTML = html;
     });
+
+    // Also fetch flat list for backward compatibility
+    const flatTask = task === "unsupervised" ? "classification" : task;
+    API.get(`/api/models?task=${flatTask}`);
 }
+
+function selectRecommendedModels() {
+    if (_aiRecommendedKeys.length === 0) {
+        showToast("Info", "Get AI recommendations first", "info");
+        getModelRecommendations();
+        return;
+    }
+    // Uncheck all, then check recommended
+    document.querySelectorAll(".model-cb").forEach(cb => {
+        cb.checked = _aiRecommendedKeys.includes(cb.value);
+    });
+    showToast("Info", `${_aiRecommendedKeys.length} AI-recommended models selected`, "info");
+}
+
+function toggleAllModels(state) {
+    document.querySelectorAll(".model-cb").forEach(cb => cb.checked = state);
+}
+
+async function getModelRecommendations() {
+    const target = document.getElementById("targetSelect").value;
+    const task = getActiveTask();
+
+    const recCard = document.getElementById("trainingRecommendCard");
+    const recContent = document.getElementById("recommendationContent");
+    const recBtn = document.getElementById("btnAIRecommend");
+
+    recCard.classList.remove("d-none");
+    recBtn.disabled = true;
+    recBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analyzing...';
+    recContent.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>AI is analyzing your data to find the best models...</div>';
+
+    try {
+        const res = await API.post("/api/models/recommend", { target, task });
+        recBtn.disabled = false;
+        recBtn.innerHTML = '<i class="fas fa-robot me-1"></i>Get AI Recommendations';
+
+        if (res.status !== "ok") {
+            recContent.innerHTML = `<div class="text-danger small">${res.message || "Failed to get recommendations"}</div>`;
+            return;
+        }
+
+        const { recommendations, recommended_keys, dataset_info } = res.data;
+        _aiRecommendedKeys = recommended_keys || [];
+
+        let html = `<div class="mb-2">`;
+        html += `<small class="text-muted">Dataset: ${dataset_info.rows?.toLocaleString()} rows × ${dataset_info.columns} cols | `;
+        html += `${dataset_info.numeric_cols} numeric, ${dataset_info.categorical_cols} categorical`;
+        if (dataset_info.is_imbalanced) html += ` | <span class="text-warning">⚠ Imbalanced classes</span>`;
+        html += `</small></div>`;
+
+        html += `<div class="recommendation-list">`;
+        recommendations.forEach((rec, idx) => {
+            const icon = idx === 0 ? "fa-trophy text-warning" : idx === 1 ? "fa-medal text-info" : "fa-star text-muted";
+            html += `<div class="recommendation-item d-flex align-items-start mb-2">
+                <i class="fas ${icon} me-2 mt-1"></i>
+                <div>
+                    <strong>${rec.name}</strong>
+                    <span class="badge bg-success ms-1" style="font-size:0.6rem">#${idx + 1}</span>
+                    <br><small class="text-muted">${rec.reason}</small>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+
+        html += `<button class="btn btn-sm btn-success mt-2" onclick="selectRecommendedModels()"><i class="fas fa-check me-1"></i>Apply Recommendations</button>`;
+        html += `<small class="text-muted ms-2">You can override by selecting/deselecting models below</small>`;
+
+        recContent.innerHTML = html;
+
+        // Update model checkboxes with recommendations highlighted
+        updateModelCheckboxes();
+
+    } catch (e) {
+        recBtn.disabled = false;
+        recBtn.innerHTML = '<i class="fas fa-robot me-1"></i>Get AI Recommendations';
+        recContent.innerHTML = `<div class="text-danger small">Error: ${e}</div>`;
+    }
+}
+
+// Supervised/Unsupervised toggle
+document.querySelectorAll('input[name="taskCategory"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+        const isSupervised = radio.value === "supervised";
+        document.getElementById("supervisedOptions").style.display = isSupervised ? "" : "none";
+        _aiRecommendedKeys = [];
+        updateModelCheckboxes();
+    });
+});
 
 document.getElementById("trainBtn").addEventListener("click", async () => {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
@@ -1634,8 +1758,13 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
         const res = await API.post("/api/model/train", { target, task, models, test_size: testSize, val_size: valSize });
         completeProgress();
 
-        if (res.status !== "ok") { 
-            showToast("Error", res.message || "Training failed", "error"); 
+        if (res.status !== "ok") {
+            // Check if this is a fixable error
+            if (res.fixable && res.error_type) {
+                showTrainingErrorWithFix(res, { target, task, models, test_size: testSize, val_size: valSize });
+            } else {
+                showToast("Error", res.message || "Training failed", "error");
+            }
             return; 
         }
 
@@ -1709,6 +1838,160 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
         showToast("Error", "Training failed: " + error.message, "error");
     }
 });
+
+function showTrainingErrorWithFix(errorResponse, trainingConfig) {
+    // Show training error card with AI fix option
+    const errorCard = document.getElementById("trainingErrorCard");
+    const errorMessage = document.getElementById("trainingErrorMessage");
+    const errorSuggestion = document.getElementById("trainingErrorSuggestion");
+    const fixBtn = document.getElementById("trainingFixBtn");
+    const dismissBtn = document.getElementById("trainingDismissBtn");
+
+    errorMessage.textContent = errorResponse.message || "Training failed";
+    errorSuggestion.textContent = errorResponse.suggestion || "AI can automatically fix this issue";
+
+    // Show error card
+    errorCard.style.display = "block";
+    errorCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    // Handle AI fix button
+    fixBtn.onclick = async () => {
+        fixBtn.disabled = true;
+        fixBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Fixing...';
+
+        try {
+            // Call auto-fix endpoint
+            const fixRes = await API.post("/api/training/auto-fix", {
+                error_type: errorResponse.error_type,
+                problem_columns: errorResponse.problem_columns,
+                target: trainingConfig.target
+            });
+
+            if (fixRes.status === "ok") {
+                showToast("Success", fixRes.message || "Issue fixed!", "success");
+                errorCard.style.display = "none";
+
+                // Automatically retry training
+                setTimeout(async () => {
+                    showToast("Info", "Retrying training with fixed data...", "info");
+                    
+                    try {
+                        showProgress("Training Models", [
+                            "Preparing training data...",
+                            "Initializing models...",
+                            "Training algorithms...",
+                            "Evaluating performance...",
+                            "Saving results..."
+                        ]);
+                        
+                        setTimeout(() => nextProgressStep(), 400);
+                        setTimeout(() => nextProgressStep(), 800);
+                        setTimeout(() => nextProgressStep(), 1200);
+                        setTimeout(() => nextProgressStep(), 1600);
+                        
+                        const retryRes = await API.post("/api/model/train", trainingConfig);
+                        completeProgress();
+
+                        if (retryRes.status !== "ok") {
+                            // Check if it's another fixable error (iterative fixing)
+                            if (retryRes.fixable && retryRes.error_type) {
+                                showTrainingErrorWithFix(retryRes, trainingConfig);
+                            } else {
+                                showToast("Error", retryRes.message || "Training failed again", "error");
+                            }
+                            return;
+                        }
+
+                        // Success! Render results
+                        const { results, split_info } = retryRes.data;
+                        State.trainedModels = results.filter(r => r.status === "success");
+
+                        // Render results table
+                        document.getElementById("trainingResultsCard").style.display = "block";
+                        let html = `<div class="mb-2"><small class="text-muted">Train: ${split_info.train_size} | Val: ${split_info.val_size} | Test: ${split_info.test_size}</small></div>`;
+                        html += `<table class="results-table"><thead><tr><th>Model</th><th>Train Score</th><th>Val Score</th><th>Time (s)</th><th>Status</th><th>Actions</th></tr></thead><tbody>`;
+                        results.forEach(r => {
+                            const status = r.status === "success"
+                                ? '<span class="badge bg-success">OK</span>'
+                                : `<span class="badge bg-danger">Error</span>`;
+                            const actions = r.status === "success"
+                                ? `<button class="btn btn-outline-primary btn-sm save-exp-btn" data-model="${r.model_key}" data-train="${r.train_score}" data-val="${r.val_score}"><i class="fas fa-save"></i></button>`
+                                : '';
+                            html += `<tr>
+                                <td>${r.model_key}</td>
+                                <td>${r.train_score ?? "—"}</td>
+                                <td>${r.val_score ?? "—"}</td>
+                                <td>${r.training_time_sec ?? "—"}</td>
+                                <td>${status}</td>
+                                <td>${actions}</td>
+                            </tr>`;
+                        });
+                        html += '</tbody></table>';
+                        document.getElementById("trainingResultsBody").innerHTML = html;
+
+                        // Populate eval / tune selects
+                        const evalSel = document.getElementById("evalModelSelect");
+                        const tuneSel = document.getElementById("tuneModelSelect");
+                        evalSel.innerHTML = '<option value="">— All models —</option>';
+                        tuneSel.innerHTML = '<option value="">— Select model —</option>';
+                        State.trainedModels.forEach(r => {
+                            evalSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
+                            tuneSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
+                        });
+                        
+                        // Update visualization model selects
+                        updateVizModelSelects();
+
+                        // Chart
+                        const successModels = results.filter(r => r.status === "success");
+                        if (successModels.length) {
+                            Plotly.newPlot("trainingChart", [
+                                { x: successModels.map(r => r.model_key), y: successModels.map(r => r.train_score), name: "Train", type: "bar", marker: { color: "#6366f1" } },
+                                { x: successModels.map(r => r.model_key), y: successModels.map(r => r.val_score), name: "Validation", type: "bar", marker: { color: "#22c55e" } },
+                            ], {
+                                barmode: "group",
+                                title: { text: "Model Comparison", font: { color: "#e2e8f0", size: 14 } },
+                                paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+                                font: { color: "#94a3b8" },
+                                margin: { t: 40, b: 60, l: 50, r: 20 }, height: 320,
+                            }, { responsive: true });
+                        }
+
+                        // Attach save experiment buttons
+                        document.querySelectorAll(".save-exp-btn").forEach(btn => {
+                            btn.addEventListener("click", () => openSaveExperimentModal(
+                                btn.dataset.model,
+                                { train_score: btn.dataset.train, val_score: btn.dataset.val },
+                                {}
+                            ));
+                        });
+
+                        showToast("Training Complete", `${successModels.length}/${trainingConfig.models.length} models trained successfully!`, "success");
+                        
+                    } catch (error) {
+                        console.error("Retry training error:", error);
+                        hideProgress();
+                        showToast("Error", "Training retry failed: " + error.message, "error");
+                    }
+                }, 500);
+            } else {
+                showToast("Error", fixRes.message || "Fix failed", "error");
+                fixBtn.disabled = false;
+                fixBtn.innerHTML = '<i class="fas fa-magic me-1"></i>AI Auto-Fix & Retry Training';
+            }
+        } catch (error) {
+            console.error("Fix error:", error);
+            showToast("Error", "Fix failed: " + error.message, "error");
+            fixBtn.disabled = false;
+            fixBtn.innerHTML = '<i class="fas fa-magic me-1"></i>AI Auto-Fix & Retry Training';
+        }
+    };
+
+    // Handle dismiss button
+    dismissBtn.onclick = () => {
+        errorCard.style.display = "none";
+    };
+}
 
 // ════════════════════════════════════════════════════════
 //  EVALUATION
