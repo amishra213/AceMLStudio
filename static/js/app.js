@@ -3202,11 +3202,11 @@ function updateVizColumnSelects() {
 }
 
 function updateVizModelSelects() {
-    const models = State.trainedModels;
-    fillSelect("vizModelConfusion", models);
-    fillSelect("vizModelROC", models);
-    fillSelect("vizModelImportance", models);
-    fillSelect("vizModelResidual", models);
+    const modelKeys = State.trainedModels.map(m => m.model_key || m);
+    fillSelect("vizModelConfusion", modelKeys);
+    fillSelect("vizModelROC", modelKeys);
+    fillSelect("vizModelImportance", modelKeys);
+    fillSelect("vizModelResidual", modelKeys);
 }
 
 function displayVisualization(vizResult, title) {

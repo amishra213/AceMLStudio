@@ -1463,7 +1463,13 @@ def train_model():
     # Store models and split for evaluation
     for r in results:
         if r.get("status") == "success" and "model" in r:
-            store.setdefault("models", {})[r["model_key"]] = r.pop("model")
+            # Store model wrapped in a dict to support evaluation data
+            store.setdefault("models", {})[r["model_key"]] = {
+                "model": r.pop("model"),
+                "train_score": r.get('train_score', 0),
+                "val_score": r.get('val_score', 0),
+                "training_time_sec": r.get('training_time_sec', 0)
+            }
             logger.info("Model trained: %s — train=%.4f, val=%.4f (%.2fs)",
                         r['model_key'], r.get('train_score', 0), r.get('val_score', 0),
                         r.get('training_time_sec', 0))
@@ -1504,13 +1510,26 @@ def evaluate_model():
 
     results = {}
     for key in keys_to_eval:
-        model = models.get(key)
-        if model is None:
+        model_data = models.get(key)
+        if model_data is None:
             results[key] = {"error": "Model not found"}
             logger.warning("Evaluation: model '%s' not found in store", key)
             continue
+        
+        # Extract model from dict structure
+        model = model_data.get("model") if isinstance(model_data, dict) else model_data
+        if model is None:
+            results[key] = {"error": "Model not available"}
+            continue
+            
         t0 = time.time()
-        results[key] = ModelEvaluator.evaluate(model, X, y, task, feature_names)
+        eval_result = ModelEvaluator.evaluate(model, X, y, task, feature_names)
+        results[key] = eval_result
+        
+        # Store evaluation data in the model dict for visualization endpoints
+        if isinstance(model_data, dict):
+            model_data["evaluation"] = eval_result
+        
         logger.info("Evaluated '%s' on %s set in %.2fs", key, dataset, time.time() - t0)
 
     # Store evaluation results for ranking
@@ -2677,6 +2696,11 @@ def viz_confusion_matrix():
         return _err(f"Model not found: {model_key}")
     
     model_data = store["models"][model_key]
+    
+    # Handle both dict and direct model storage for backward compatibility
+    if not isinstance(model_data, dict):
+        return _err("Invalid model data structure")
+    
     if "evaluation" not in model_data:
         return _err("Model has not been evaluated yet")
     
@@ -2708,6 +2732,11 @@ def viz_roc_curve():
         return _err(f"Model not found: {model_key}")
     
     model_data = store["models"][model_key]
+    
+    # Handle both dict and direct model storage for backward compatibility
+    if not isinstance(model_data, dict):
+        return _err("Invalid model data structure")
+    
     if "evaluation" not in model_data:
         return _err("Model has not been evaluated yet")
     
@@ -2740,7 +2769,12 @@ def viz_feature_importance():
         return _err(f"Model not found: {model_key}")
     
     model_data = store["models"][model_key]
-    model = model_data.get("model")
+    
+    # Handle both dict and direct model storage for backward compatibility
+    if isinstance(model_data, dict):
+        model = model_data.get("model")
+    else:
+        model = model_data
     
     if model is None:
         return _err("Model not available")
@@ -2799,6 +2833,11 @@ def viz_residual_plot():
         return _err(f"Model not found: {model_key}")
     
     model_data = store["models"][model_key]
+    
+    # Handle both dict and direct model storage for backward compatibility
+    if not isinstance(model_data, dict):
+        return _err("Invalid model data structure")
+    
     if "evaluation" not in model_data:
         return _err("Model has not been evaluated yet")
     
