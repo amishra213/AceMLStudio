@@ -14,6 +14,7 @@ const State = {
     trainedModels: [],
     lastEvalResults: null,
     lastTuningResults: null,
+    lastTuningError: null,
     lastVizResult: null,
     vizInteractive: true,
 };
@@ -264,6 +265,13 @@ function navigateTo(section) {
         tuning: "Hyperparameter Tuning", experiments: "Experiments", ai: "AI Insights",
     };
     document.getElementById("sectionTitle").textContent = titles[section] || section;
+
+    // Load data when navigating to specific sections
+    if (section === "experiments") {
+        loadExperiments();
+    } else if (section === "tuning") {
+        populateTuningModelSelector();
+    }
 }
 
 // ─── Build a data table ─────────────────────────────────
@@ -1792,7 +1800,7 @@ document.querySelectorAll('input[name="taskCategory"]').forEach(radio => {
 document.getElementById("trainBtn").addEventListener("click", async () => {
     if (!State.dataLoaded) { showToast("Warning", "Upload a dataset first", "error"); return; }
     const target = document.getElementById("targetSelect").value;
-    const task = document.querySelector('input[name="taskType"]:checked')?.value || "classification";
+    const task = getActiveTask();  // Use getActiveTask() to properly handle supervised/unsupervised
     if (!target) { showToast("Warning", "Set a target column first", "error"); return; }
 
     const models = Array.from(document.querySelectorAll(".model-cb:checked")).map(cb => cb.value);
@@ -1872,10 +1880,19 @@ document.getElementById("trainBtn").addEventListener("click", async () => {
     const evalSel = document.getElementById("evalModelSelect");
     const tuneSel = document.getElementById("tuneModelSelect");
     evalSel.innerHTML = '<option value="">— All models —</option>';
-    tuneSel.innerHTML = '<option value="">— Select model —</option>';
+    
+    // For tuning, check if we're in trained models mode before updating
+    const tuneSource = document.querySelector('input[name="tuneModelSource"]:checked')?.value || "trained";
+    if (tuneSource === "trained") {
+        tuneSel.innerHTML = '<option value="">— Select model —</option>';
+        State.trainedModels.forEach(r => {
+            tuneSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
+        });
+    }
+    
+    // Always populate eval select
     State.trainedModels.forEach(r => {
         evalSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
-        tuneSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
     });
     
     // Update visualization model selects
@@ -2007,10 +2024,19 @@ function showTrainingErrorWithFix(errorResponse, trainingConfig) {
                         const evalSel = document.getElementById("evalModelSelect");
                         const tuneSel = document.getElementById("tuneModelSelect");
                         evalSel.innerHTML = '<option value="">— All models —</option>';
-                        tuneSel.innerHTML = '<option value="">— Select model —</option>';
+                        
+                        // For tuning, check if we're in trained models mode before updating
+                        const tuneSource = document.querySelector('input[name="tuneModelSource"]:checked')?.value || "trained";
+                        if (tuneSource === "trained") {
+                            tuneSel.innerHTML = '<option value="">— Select model —</option>';
+                            State.trainedModels.forEach(r => {
+                                tuneSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
+                            });
+                        }
+                        
+                        // Always populate eval select
                         State.trainedModels.forEach(r => {
                             evalSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
-                            tuneSel.innerHTML += `<option value="${r.model_key}">${r.model_key}</option>`;
                         });
                         
                         // Update visualization model selects
@@ -2494,6 +2520,59 @@ async function updateTrainingResultsWithTestScores(evalData) {
 // ════════════════════════════════════════════════════════
 //  HYPERPARAMETER TUNING
 // ════════════════════════════════════════════════════════
+
+// ─── Populate Tuning Model Selector ─────────────────────
+async function populateTuningModelSelector() {
+    const tuneSel = document.getElementById("tuneModelSelect");
+    const sourceType = document.querySelector('input[name="tuneModelSource"]:checked')?.value || "trained";
+    const modelLabel = tuneSel.previousElementSibling;
+    const modelDescription = tuneSel.nextElementSibling;
+
+    if (sourceType === "trained") {
+        // Show trained models from current session
+        if (modelLabel) modelLabel.textContent = "Model";
+        if (modelDescription) modelDescription.textContent = "Choose a model from your training results. The best performing models benefit most from tuning.";
+        
+        tuneSel.innerHTML = '<option value="">— Select model —</option>';
+        State.trainedModels.forEach(r => {
+            tuneSel.innerHTML += `<option value="${r.model_key}" data-source="trained">${r.model_key}</option>`;
+        });
+
+        if (State.trainedModels.length === 0) {
+            tuneSel.innerHTML += '<option value="" disabled>No trained models yet - train some models first</option>';
+        }
+    } else {
+        // Load and show saved experiments
+        if (modelLabel) modelLabel.textContent = "Experiment";
+        if (modelDescription) modelDescription.textContent = "Select a saved experiment to tune. Make sure you have the same dataset loaded that was used for the original experiment.";
+        
+        try {
+            const res = await API.get("/api/experiments");
+            if (res.status === "ok") {
+                const experiments = res.data;
+                tuneSel.innerHTML = '<option value="">— Select experiment —</option>';
+                
+                if (experiments.length === 0) {
+                    tuneSel.innerHTML += '<option value="" disabled>No saved experiments yet</option>';
+                } else {
+                    experiments.forEach(exp => {
+                        const label = `${exp.model_key} - ${exp.name}`;
+                        const metrics = exp.metrics || {};
+                        const primaryMetric = exp.task === "classification" 
+                            ? (metrics.accuracy ? `Acc: ${metrics.accuracy}` : "")
+                            : (metrics.r2_score ? `R²: ${metrics.r2_score}` : "");
+                        const fullLabel = primaryMetric ? `${label} (${primaryMetric})` : label;
+                        tuneSel.innerHTML += `<option value="${exp.model_key}" data-source="experiment" data-exp-id="${exp.id}">${fullLabel}</option>`;
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load experiments for tuning:", error);
+            tuneSel.innerHTML = '<option value="">— Error loading experiments —</option>';
+        }
+    }
+}
+
 document.getElementById("tuneBtn").addEventListener("click", async () => {
     const modelKey = document.getElementById("tuneModelSelect").value;
     const method = document.getElementById("tuneMethod").value;
@@ -2522,12 +2601,19 @@ document.getElementById("tuneBtn").addEventListener("click", async () => {
         });
         completeProgress();
 
-        if (res.status !== "ok") { 
-            showToast("Error", res.message || "Tuning failed", "error"); 
+        if (res.status !== "ok") {
+            // Check if detailed error info is available for AI analysis
+            if (res.ai_analysis_available && res.error_details) {
+                showTuningError(res);
+            } else {
+                showToast("Error", res.message || "Tuning failed", "error");
+            }
             return; 
         }
         State.lastTuningResults = res.data;
         renderTuningResults(res.data);
+        // Hide error card if it was showing
+        document.getElementById("tuningErrorCard").style.display = "none";
     } catch (error) {
         console.error("Tuning error:", error);
         hideProgress();
@@ -2577,6 +2663,76 @@ function renderTuningResults(data) {
     }
 
     showToast("Tuning Complete", `Best score: ${data.best_score}`, "success");
+}
+
+// ─── Show Tuning Error with AI Analysis ────────────────
+function showTuningError(errorResponse) {
+    const errorCard = document.getElementById("tuningErrorCard");
+    const errorMessage = document.getElementById("tuningErrorMessage");
+    const analyzeBtn = document.getElementById("tuningAnalyzeBtn");
+    const dismissBtn = document.getElementById("tuningDismissBtn");
+    const errorAnalysis = document.getElementById("tuningErrorAnalysis");
+    const errorAnalysisContent = document.getElementById("tuningErrorAnalysisContent");
+
+    // Show error card
+    errorCard.style.display = "block";
+    errorCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    
+    // Hide any previous results
+    document.getElementById("tuningResultsCard").style.display = "none";
+    errorAnalysis.style.display = "none";
+
+    // Display error message
+    errorMessage.innerHTML = `
+        <strong>Error:</strong> ${errorResponse.message || "Tuning failed"}<br>
+        <small class="text-muted">Model: ${errorResponse.error_details?.model_key || "unknown"} | 
+        Method: ${errorResponse.error_details?.method || "unknown"}</small>
+    `;
+
+    // Store error details for AI analysis
+    State.lastTuningError = errorResponse.error_details;
+
+    // Handle AI Analysis button
+    analyzeBtn.onclick = async () => {
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
+
+        try {
+            const res = await API.post("/api/llm/analyze-tuning-error", {
+                error_details: errorResponse.error_details
+            });
+
+            if (res.status === "ok") {
+                errorAnalysis.style.display = "block";
+                // Render markdown
+                if (typeof marked !== "undefined") {
+                    errorAnalysisContent.innerHTML = marked.parse(res.data.analysis);
+                } else {
+                    errorAnalysisContent.innerHTML = `<pre style="white-space: pre-wrap;">${res.data.analysis}</pre>`;
+                }
+                analyzeBtn.style.display = "none";
+                showToast("Success", "AI analysis complete", "success");
+            } else {
+                showToast("Error", res.message || "Analysis failed", "error");
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = '<i class="fas fa-robot me-2"></i>Analyze Error with AI';
+            }
+        } catch (error) {
+            console.error("Error analysis failed:", error);
+            showToast("Error", "Analysis failed: " + error.message, "error");
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '<i class="fas fa-robot me-2"></i>Analyze Error with AI';
+        }
+    };
+
+    // Handle Dismiss button
+    dismissBtn.onclick = () => {
+        errorCard.style.display = "none";
+        analyzeBtn.disabled = false;
+        analyzeBtn.style.display = "inline-block";
+        analyzeBtn.innerHTML = '<i class="fas fa-robot me-2"></i>Analyze Error with AI';
+        errorAnalysis.style.display = "none";
+    };
 }
 
 // ════════════════════════════════════════════════════════
@@ -4022,4 +4178,14 @@ document.addEventListener("DOMContentLoaded", () => {
     updateModelCheckboxes();
     loadChatHistory();
     initHelpPanels();
+    
+    // Set up tuning model source toggle event listeners
+    const tuneSourceRadios = document.querySelectorAll('input[name="tuneModelSource"]');
+    if (tuneSourceRadios.length > 0) {
+        tuneSourceRadios.forEach(radio => {
+            radio.addEventListener("change", () => {
+                populateTuningModelSelector();
+            });
+        });
+    }
 });

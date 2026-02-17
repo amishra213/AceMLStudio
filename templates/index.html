@@ -1738,6 +1738,21 @@
                                 <div class="card-header">Tuning Configuration</div>
                                 <div class="card-body">
                                     <div class="mb-3">
+                                        <label class="form-label">Model Source</label>
+                                        <div class="btn-group w-100 mb-2" role="group">
+                                            <input type="radio" class="btn-check" name="tuneModelSource" id="tuneSourceTrained" value="trained" checked autocomplete="off">
+                                            <label class="btn btn-outline-primary" for="tuneSourceTrained">
+                                                <i class="fas fa-brain me-1"></i>Trained Models
+                                            </label>
+                                            
+                                            <input type="radio" class="btn-check" name="tuneModelSource" id="tuneSourceExperiment" value="experiment" autocomplete="off">
+                                            <label class="btn btn-outline-primary" for="tuneSourceExperiment">
+                                                <i class="fas fa-flask me-1"></i>Saved Experiments
+                                            </label>
+                                        </div>
+                                        <div class="control-description">Choose between recently trained models or previously saved experiments. Note: You must have the same dataset loaded to tune an experiment.</div>
+                                    </div>
+                                    <div class="mb-3">
                                         <label class="form-label">Model</label>
                                         <select class="form-select" id="tuneModelSelect" title="Select a trained model to tune">
                                             <option value="">— Select model —</option>
@@ -1765,6 +1780,28 @@
                             </div>
                         </div>
                         <div class="col-lg-7">
+                            <!-- Tuning Error Card (shown on failure) -->
+                            <div class="card glass-card border-danger mb-3" id="tuningErrorCard" style="display:none">
+                                <div class="card-header bg-danger bg-opacity-10">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>Tuning Failed
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-danger mb-3" id="tuningErrorMessage"></div>
+                                    <div id="tuningErrorAnalysis" style="display:none" class="mb-3">
+                                        <strong class="d-block mb-2"><i class="fas fa-robot me-2"></i>AI Analysis:</strong>
+                                        <div class="markdown-content p-3 bg-dark rounded" id="tuningErrorAnalysisContent"></div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-primary" id="tuningAnalyzeBtn">
+                                            <i class="fas fa-robot me-2"></i>Analyze Error with AI
+                                        </button>
+                                        <button class="btn btn-outline-secondary" id="tuningDismissBtn">
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="card glass-card" id="tuningResultsCard" style="display:none">
                                 <div class="card-header">Tuning Results</div>
                                 <div class="card-body" id="tuningResultsBody"></div>

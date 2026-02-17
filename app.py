@@ -1299,6 +1299,20 @@ def train_model():
     if not model_keys:
         return _err("At least one model must be selected")
 
+    # Validate that model_keys are compatible with the task
+    available_models = ModelTrainer.get_available_models(task)
+    invalid_models = [m for m in model_keys if m not in available_models]
+    valid_model_keys = [m for m in model_keys if m in available_models]
+    
+    if invalid_models:
+        logger.warning("Filtering out %d invalid models for task '%s': %s", 
+                      len(invalid_models), task, invalid_models)
+    
+    if not valid_model_keys:
+        return _err(f"None of the selected models are valid for {task}. Available models: {list(available_models.keys())}")
+    
+    model_keys = valid_model_keys  # Use only valid models
+
     logger.info("Training request: models=%s, task=%s, target=%s, shape=%s (session=%s)",
                 model_keys, task, target, df.shape, _sid())
 
@@ -1583,6 +1597,45 @@ def cross_validate_model():
     feature_cols = [c for c in df.columns if c != target]
     X = df[feature_cols].copy()
     y = df[target].copy()
+
+    # AUTO-CONVERT datetime columns to numeric features
+    datetime_cols = X.select_dtypes(include=["datetime64", "datetimetz"]).columns.tolist()
+    if datetime_cols:
+        logger.info("Auto-converting %d datetime column(s) to numeric features: %s", len(datetime_cols), datetime_cols[:5])
+        for col in datetime_cols:
+            try:
+                dt_series = pd.to_datetime(X[col], errors="coerce")
+                X[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                X[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                X[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                X[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                epoch = pd.Timestamp("1970-01-01")
+                X[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                X = X.drop(columns=[col])
+                logger.info("Converted datetime '%s' → 5 numeric features", col)
+            except Exception as dt_err:
+                logger.warning("Failed to convert datetime column '%s', dropping it: %s", col, dt_err)
+                X = X.drop(columns=[col])
+
+    # Check for object columns that look like dates
+    for col in X.select_dtypes(include=["object"]).columns:
+        try:
+            sample = X[col].dropna().head(20)
+            if len(sample) > 0:
+                parsed = pd.to_datetime(sample, errors="coerce")
+                if parsed.notna().sum() > len(sample) * 0.8:
+                    logger.info("Detected string-date column '%s', converting to numeric features", col)
+                    dt_series = pd.to_datetime(X[col], errors="coerce")
+                    epoch = pd.Timestamp("1970-01-01")
+                    X[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                    X[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                    X[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                    X[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                    X[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                    X = X.drop(columns=[col])
+        except Exception:
+            pass
+
     obj_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     if obj_cols:
         X = pd.get_dummies(X, columns=obj_cols, drop_first=True)
@@ -1622,6 +1675,48 @@ def tune_model():
     feature_cols = [c for c in df.columns if c != target]
     X = df[feature_cols].copy()
     y = df[target].copy()
+
+    # AUTO-CONVERT datetime columns to numeric features
+    datetime_cols = X.select_dtypes(include=["datetime64", "datetimetz"]).columns.tolist()
+    if datetime_cols:
+        logger.info("Auto-converting %d datetime column(s) to numeric features: %s", len(datetime_cols), datetime_cols[:5])
+        for col in datetime_cols:
+            try:
+                dt_series = pd.to_datetime(X[col], errors="coerce")
+                # Extract useful numeric features from datetime
+                X[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                X[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                X[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                X[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                # Also create ordinal (days since epoch) for continuous representation
+                epoch = pd.Timestamp("1970-01-01")
+                X[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                # Drop original datetime column
+                X = X.drop(columns=[col])
+                logger.info("Converted datetime '%s' → 5 numeric features (year, month, day, dayofweek, ordinal)", col)
+            except Exception as dt_err:
+                logger.warning("Failed to convert datetime column '%s', dropping it: %s", col, dt_err)
+                X = X.drop(columns=[col])
+
+    # Also check for object columns that look like dates (string dates)
+    for col in X.select_dtypes(include=["object"]).columns:
+        try:
+            sample = X[col].dropna().head(20)
+            if len(sample) > 0:
+                parsed = pd.to_datetime(sample, errors="coerce")
+                if parsed.notna().sum() > len(sample) * 0.8:  # >80% parse as dates
+                    logger.info("Detected string-date column '%s', converting to numeric features", col)
+                    dt_series = pd.to_datetime(X[col], errors="coerce")
+                    epoch = pd.Timestamp("1970-01-01")
+                    X[f"{col}_year"] = dt_series.dt.year.astype("float64")
+                    X[f"{col}_month"] = dt_series.dt.month.astype("float64")
+                    X[f"{col}_day"] = dt_series.dt.day.astype("float64")
+                    X[f"{col}_dayofweek"] = dt_series.dt.dayofweek.astype("float64")
+                    X[f"{col}_ordinal"] = (dt_series - epoch).dt.total_seconds().astype("float64")
+                    X = X.drop(columns=[col])
+        except Exception:
+            pass  # Not a date column, skip
+
     obj_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     if obj_cols:
         X = pd.get_dummies(X, columns=obj_cols, drop_first=True)
@@ -1649,8 +1744,25 @@ def tune_model():
 
         return _ok(result)
     except Exception as e:
+        error_msg = str(e)
+        error_type = type(e).__name__
         logger.error("Tuning failed for model=%s, method=%s: %s", model_key, method, e, exc_info=True)
-        return _err(f"Tuning failed: {e}")
+        
+        # Provide detailed error info for AI analysis
+        return jsonify({
+            "status": "error",
+            "message": f"Tuning failed: {error_msg}",
+            "error_details": {
+                "model_key": model_key,
+                "method": method,
+                "task": task,
+                "error_type": error_type,
+                "error_message": error_msg,
+                "n_iter": n_iter,
+                "cv_folds": cv
+            },
+            "ai_analysis_available": True
+        }), 400
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -1778,6 +1890,30 @@ def llm_suggest_tuning():
     response = LLMAnalyzer.suggest_tuning(model_key, params, metrics)
     logger.info("LLM tuning suggestions complete for model=%s (response_len=%d)", model_key, len(response))
     return _ok({"suggestions": response})
+
+
+@app.route("/api/llm/analyze-tuning-error", methods=["POST"])
+def llm_analyze_tuning_error():
+    """Analyze a tuning failure and provide detailed guidance."""
+    logger.info("LLM tuning error analysis requested (session=%s)", _sid())
+    body = request.get_json(silent=True) or {}
+    
+    error_details = body.get("error_details", {})
+    model_key = error_details.get("model_key", "unknown")
+    method = error_details.get("method", "unknown")
+    error_message = error_details.get("error_message", "")
+    task = error_details.get("task", "classification")
+    
+    df = _df()
+    data_info = DataLoader.get_info(df) if df is not None else {}
+    
+    response = LLMAnalyzer.analyze_tuning_error(
+        model_key, method, error_message, data_info, task
+    )
+    
+    logger.info("LLM tuning error analysis complete for model=%s (response_len=%d)", 
+                model_key, len(response))
+    return _ok({"analysis": response})
 
 
 @app.route("/api/llm/ask", methods=["POST"])

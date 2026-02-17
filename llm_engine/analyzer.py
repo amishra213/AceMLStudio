@@ -88,6 +88,28 @@ class LLMAnalyzer:
         return cls._call_llm(prompt)
 
     @classmethod
+    def analyze_tuning_error(cls, model_key: str, method: str, error_message: str, 
+                            data_info: dict, task: str) -> str:
+        """Analyze why hyperparameter tuning failed and suggest fixes."""
+        logger.info("LLM: analyzing tuning error for model='%s', method=%s", model_key, method)
+        prompt = (
+            f"Hyperparameter tuning failed for model '{model_key}' using {method} method. "
+            "Analyze the error and provide:\n"
+            "1. A clear explanation of what went wrong in plain language\n"
+            "2. The likely root cause of the failure\n"
+            "3. Step-by-step instructions to fix the issue\n"
+            "4. Alternative approaches if the standard fix won't work\n\n"
+            f"**Error Message:**\n```\n{error_message}\n```\n\n"
+            f"**Model:** {model_key}\n"
+            f"**Task:** {task}\n"
+            f"**Tuning Method:** {method}\n\n"
+            f"**Dataset Info:**\n```json\n{json.dumps(data_info, indent=2, default=str)}\n```\n\n"
+            "Be specific about which parameters to adjust, data preprocessing steps needed, "
+            "or configuration changes required."
+        )
+        return cls._call_llm(prompt)
+
+    @classmethod
     def general_question(cls, question: str, context: dict | None = None) -> str:
         logger.info("LLM: general question (len=%d, has_context=%s)", len(question), bool(context))
         prompt = question
