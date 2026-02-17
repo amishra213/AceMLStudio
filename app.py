@@ -1294,8 +1294,10 @@ def train_model():
     test_size = body.get("test_size", Config.DEFAULT_TEST_SIZE)
     val_size = body.get("val_size", Config.DEFAULT_VALIDATION_SIZE)
 
-    if not target or target not in df.columns:
-        return _err("Valid target column required")
+    # Unsupervised learning doesn't require a target column
+    if task != "unsupervised":
+        if not target or target not in df.columns:
+            return _err("Valid target column required")
     if not model_keys:
         return _err("At least one model must be selected")
 
@@ -1313,16 +1315,24 @@ def train_model():
     
     model_keys = valid_model_keys  # Use only valid models
 
-    logger.info("Training request: models=%s, task=%s, target=%s, shape=%s (session=%s)",
-                model_keys, task, target, df.shape, _sid())
-
-    store["target"] = target
-    store["task"] = task
-
-    # Prepare numeric-only features
-    feature_cols = [c for c in df.columns if c != target]
-    X = df[feature_cols].copy()
-    y = df[target].copy()
+    # For unsupervised, clear target and don't log it
+    if task == "unsupervised":
+        logger.info("Training request: models=%s, task=%s (unsupervised, no target), shape=%s (session=%s)",
+                    model_keys, task, df.shape, _sid())
+        store["target"] = None  # Clear any previous target
+        store["task"] = task
+        # Unsupervised: use all columns, no target
+        X = df.copy()
+        y = None
+    else:
+        logger.info("Training request: models=%s, task=%s, target=%s, shape=%s (session=%s)",
+                    model_keys, task, target, df.shape, _sid())
+        store["target"] = target
+        store["task"] = task
+        # Supervised: separate features and target
+        feature_cols = [c for c in df.columns if c != target]
+        X = df[feature_cols].copy()
+        y = df[target].copy()
 
     # CRITICAL: Validate feature count before processing
     MAX_FEATURES_ALLOWED = 10000  # Reasonable limit for most ML tasks
@@ -1442,22 +1452,33 @@ def train_model():
     X = X.fillna(0)
     logger.info("Final training feature matrix: %d rows × %d features", X.shape[0], X.shape[1])
 
-    # Split
+    # Split and train based on task type
     t0 = time.time()
-    split = ModelTrainer.split_data(
-        pd.concat([X, y], axis=1), target,
-        test_size=test_size, val_size=val_size
-    )
-    logger.debug("Data split: train=%d, val=%d, test=%d",
-                 split['split_info']['train_size'],
-                 split['split_info']['val_size'],
-                 split['split_info']['test_size'])
+    
+    if task == "unsupervised":
+        # Unsupervised: no train/val/test split needed, train on full dataset
+        logger.info("Unsupervised training - using full dataset (no split)")
+        return _err("Unsupervised learning is not yet fully implemented. Please use Classification or Regression tasks.", 501)
+    else:
+        # Supervised: split data with target
+        if not target:  # Type guard for linter
+            return _err("Target is required for supervised learning")
+        
+        split = ModelTrainer.split_data(
+            pd.concat([X, y], axis=1), target,
+            test_size=test_size, val_size=val_size
+        )
+        logger.debug("Data split: train=%d, val=%d, test=%d",
+                     split['split_info']['train_size'],
+                     split['split_info']['val_size'],
+                     split['split_info']['test_size'])
 
-    results = ModelTrainer.train_multiple(
-        model_keys, task,
-        split["X_train"], split["y_train"],
-        split["X_val"], split["y_val"]
-    )
+        results = ModelTrainer.train_multiple(
+            model_keys, task,
+            split["X_train"], split["y_train"],
+            split["X_val"], split["y_val"]
+        )
+    
     duration = time.time() - t0
 
     # Store models and split for evaluation

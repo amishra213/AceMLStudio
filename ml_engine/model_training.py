@@ -92,6 +92,10 @@ class ModelTrainer:
     def get_available_models(task: str) -> dict:
         if task == "classification":
             return Config.CLASSIFICATION_MODELS
+        elif task == "regression":
+            return Config.REGRESSION_MODELS
+        elif task == "unsupervised":
+            return Config.UNSUPERVISED_MODELS
         return Config.REGRESSION_MODELS
 
     # ------------------------------------------------------------------ #

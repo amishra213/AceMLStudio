@@ -1705,8 +1705,7 @@ function updateModelCheckboxes() {
     });
 
     // Also fetch flat list for backward compatibility
-    const flatTask = task === "unsupervised" ? "classification" : task;
-    API.get(`/api/models?task=${flatTask}`);
+    API.get(`/api/models?task=${task}`);
 }
 
 function selectRecommendedModels() {
