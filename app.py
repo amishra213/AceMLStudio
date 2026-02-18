@@ -1456,9 +1456,37 @@ def train_model():
     t0 = time.time()
     
     if task == "unsupervised":
-        # Unsupervised: no train/val/test split needed, train on full dataset
-        logger.info("Unsupervised training - using full dataset (no split)")
-        return _err("Unsupervised learning is not yet fully implemented. Please use Classification or Regression tasks.", 501)
+        # Unsupervised: train on full dataset, no splitting
+        logger.info("Unsupervised training - using full dataset (no train/val/test split)")
+        
+        results = ModelTrainer.train_multiple(
+            model_keys, task,
+            X, None, None, None  # No y, no validation needed
+        )
+        
+        duration = time.time() - t0
+        
+        # Store models for later use
+        for r in results:
+            if r.get("status") == "success" and "model" in r:
+                store.setdefault("models", {})[r["model_key"]] = {
+                    "model": r.pop("model"),
+                    "silhouette_score": r.get('silhouette_score', 0),
+                    "davies_bouldin_score": r.get('davies_bouldin_score', 0),
+                    "n_clusters": r.get('n_clusters', 0),
+                    "training_time_sec": r.get('training_time_sec', 0)
+                }
+                logger.info("Unsupervised model trained: %s — silhouette=%.4f, n_clusters=%d (%.2fs)",
+                            r['model_key'], r.get('silhouette_score', 0), 
+                            r.get('n_clusters', 0), r.get('training_time_sec', 0))
+            elif r.get("status") == "error":
+                logger.error("Model training failed: %s — %s", r.get('model_key'), r.get('error'))
+        
+        store["feature_names"] = X.columns.tolist()
+        logger.info("Unsupervised training complete in %.2fs for %d model(s)", duration, len(model_keys))
+        
+        return _ok({"results": results, "task": "unsupervised", "n_samples": len(X)})
+        
     else:
         # Supervised: split data with target
         if not target:  # Type guard for linter

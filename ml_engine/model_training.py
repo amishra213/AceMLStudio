@@ -19,6 +19,9 @@ from sklearn.ensemble import (
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+from sklearn.decomposition import PCA
+from sklearn.ensemble import IsolationForest
 
 from config import Config
 from .cloud_gpu import get_cloud_gpu_manager
@@ -61,6 +64,14 @@ if HAS_XGB:
     CLF_REGISTRY["xgboost_clf"] = XGBClassifier
     REG_REGISTRY["xgboost_reg"] = XGBRegressor
 
+UNSUPERVISED_REGISTRY: dict[str, type] = {
+    "kmeans": KMeans,
+    "dbscan": DBSCAN,
+    "agglomerative": AgglomerativeClustering,
+    "pca_model": PCA,
+    "isolation_forest": IsolationForest,
+}
+
 
 def _default_params(key: str) -> dict:
     """Sensible defaults for quick training."""
@@ -81,6 +92,12 @@ def _default_params(key: str) -> dict:
         "svr_reg": {},
         "knn_reg": {"n_neighbors": 5},
         "mlp_reg": {"max_iter": 500, "random_state": Config.DEFAULT_RANDOM_STATE},
+        # Unsupervised models
+        "kmeans": {"n_clusters": 8, "random_state": Config.DEFAULT_RANDOM_STATE, "n_init": 10},
+        "dbscan": {"eps": 0.5, "min_samples": 5},
+        "agglomerative": {"n_clusters": 8},
+        "pca_model": {"n_components": 2, "random_state": Config.DEFAULT_RANDOM_STATE},
+        "isolation_forest": {"contamination": 0.1, "random_state": Config.DEFAULT_RANDOM_STATE},
     }
     return defaults.get(key, {})
 
@@ -132,10 +149,20 @@ class ModelTrainer:
     #  Train single model
     # ------------------------------------------------------------------ #
     @staticmethod
-    def train(model_key: str, task: str, X_train, y_train,
+    def train(model_key: str, task: str, X_train, y_train=None,
               hyperparams: dict | None = None,
               use_cloud_gpu: bool | None = None) -> tuple[object, dict]:
-        registry = CLF_REGISTRY if task == "classification" else REG_REGISTRY
+        # Select registry based on task
+        if task == "classification":
+            registry = CLF_REGISTRY
+        elif task == "regression":
+            registry = REG_REGISTRY
+        elif task == "unsupervised":
+            registry = UNSUPERVISED_REGISTRY
+        else:
+            logger.error("Unknown task: %s", task)
+            raise ValueError(f"Unknown task: {task}")
+            
         model_cls = registry.get(model_key)
         if model_cls is None:
             logger.error("Unknown model key: %s (task=%s)", model_key, task)
@@ -145,10 +172,10 @@ class ModelTrainer:
         if hyperparams:
             params.update(hyperparams)
 
-        # Check if cloud GPU should be used
+        # Check if cloud GPU should be used (not for unsupervised currently)
         use_gpu = use_cloud_gpu if use_cloud_gpu is not None else Config.CLOUD_GPU_ENABLED
         
-        if use_gpu:
+        if use_gpu and task != "unsupervised":
             try:
                 logger.info("Attempting cloud GPU training for '%s' (%s)", model_key, task)
                 gpu_manager = get_cloud_gpu_manager()
@@ -175,12 +202,21 @@ class ModelTrainer:
                     raise
 
         # Local training (default or fallback)
-        logger.info("Training '%s' (%s) on %d samples x %d features (LOCAL)",
-                    model_key, task, len(X_train), X_train.shape[1])
+        if task == "unsupervised":
+            logger.info("Training unsupervised '%s' on %d samples x %d features (LOCAL)",
+                        model_key, len(X_train), X_train.shape[1])
+        else:
+            logger.info("Training '%s' (%s) on %d samples x %d features (LOCAL)",
+                        model_key, task, len(X_train), X_train.shape[1])
         logger.debug("Hyperparams: %s", params)
         model = model_cls(**params)
         start = time.time()
-        model.fit(X_train, y_train)
+        
+        # Fit model - unsupervised doesn't use y_train
+        if task == "unsupervised":
+            model.fit(X_train)
+        else:
+            model.fit(X_train, y_train)
         duration = round(time.time() - start, 2)
         logger.info("Model '%s' trained in %.2fs", model_key, duration)
 
@@ -233,25 +269,78 @@ class ModelTrainer:
     # ------------------------------------------------------------------ #
     @classmethod
     def train_multiple(cls, model_keys: list[str], task: str,
-                       X_train, y_train, X_val, y_val,
+                       X_train, y_train=None, X_val=None, y_val=None,
                        use_cloud_gpu: bool | None = None) -> list[dict]:
         logger.info("Training %d models for comparison (task=%s)", len(model_keys), task)
         results = []
         for key in model_keys:
             try:
                 model, info = cls.train(key, task, X_train, y_train, use_cloud_gpu=use_cloud_gpu)
-                train_score = round(float(model.score(X_train, y_train)), 4)  # type: ignore
-                val_score = round(float(model.score(X_val, y_val)), 4)  # type: ignore
-                logger.info("  %s: train=%.4f, val=%.4f (%.2fs) [%s]",
-                            key, train_score, val_score, info['training_time_sec'],
-                            info.get('execution_mode', 'local'))
-                results.append({
-                    **info,
-                    "train_score": train_score,
-                    "val_score": val_score,
-                    "model": model,
-                    "status": "success",
-                })
+                
+                if task == "unsupervised":
+                    # For unsupervised, compute clustering metrics
+                    from sklearn.metrics import silhouette_score, davies_bouldin_score
+                    
+                    try:
+                        if hasattr(model, 'labels_'):
+                            labels = model.labels_  # type: ignore
+                        elif hasattr(model, 'predict'):
+                            labels = model.predict(X_train)  # type: ignore
+                        else:
+                            # PCA doesn't have labels
+                            labels = None
+                        
+                        if labels is not None and len(set(labels)) > 1:
+                            # Calculate clustering metrics
+                            silhouette = round(float(silhouette_score(X_train, labels)), 4)
+                            db_score = round(float(davies_bouldin_score(X_train, labels)), 4)
+                            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)  # Exclude noise
+                            
+                            logger.info("  %s: silhouette=%.4f, DB_score=%.4f, n_clusters=%d (%.2fs) [%s]",
+                                        key, silhouette, db_score, n_clusters, info['training_time_sec'],
+                                        info.get('execution_mode', 'local'))
+                            
+                            results.append({
+                                **info,
+                                "silhouette_score": silhouette,
+                                "davies_bouldin_score": db_score,
+                                "n_clusters": n_clusters,
+                                "n_samples": len(X_train),
+                                "model": model,
+                                "status": "success",
+                            })
+                        else:
+                            # For models like PCA or single cluster
+                            logger.info("  %s: trained (%.2fs) [%s] - no clustering metrics",
+                                        key, info['training_time_sec'],
+                                        info.get('execution_mode', 'local'))
+                            results.append({
+                                **info,
+                                "n_samples": len(X_train),
+                                "model": model,
+                                "status": "success",
+                            })
+                    except Exception as metric_err:
+                        logger.warning("Could not compute metrics for %s: %s", key, metric_err)
+                        results.append({
+                            **info,
+                            "model": model,
+                            "status": "success",
+                        })
+                else:
+                    # Supervised learning - use score method
+                    train_score = round(float(model.score(X_train, y_train)), 4)  # type: ignore
+                    val_score = round(float(model.score(X_val, y_val)), 4)  # type: ignore
+                    logger.info("  %s: train=%.4f, val=%.4f (%.2fs) [%s]",
+                                key, train_score, val_score, info['training_time_sec'],
+                                info.get('execution_mode', 'local'))
+                    results.append({
+                        **info,
+                        "train_score": train_score,
+                        "val_score": val_score,
+                        "model": model,
+                        "status": "success",
+                    })
             except Exception as e:
                 logger.error("Failed to train '%s': %s", key, e, exc_info=True)
                 results.append({
