@@ -1870,3 +1870,139 @@ body {
 
 /* progress bar inside tables */
 .progress { background: rgba(255,255,255,.08); }
+
+/* ══════════════════════════════════════════════
+   SPECIALIZED ENGINE — Info / Glossary Components
+══════════════════════════════════════════════ */
+
+/* Glossary bar */
+.info-glossary-bar {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 8px;
+    padding: 8px 14px;
+}
+.info-glossary-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+/* Info pills (method tags in glossary bar) */
+.info-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    cursor: help;
+    transition: opacity .15s;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+.info-pill:hover { opacity: .85; }
+.info-pill-blue   { background: rgba(99,102,241,.14);  color: #a5b4fc; border-color: rgba(99,102,241,.3);  }
+.info-pill-purple { background: rgba(139,92,246,.14);  color: #c4b5fd; border-color: rgba(139,92,246,.3);  }
+.info-pill-teal   { background: rgba(20,184,166,.14);  color: #5eead4; border-color: rgba(20,184,166,.3);  }
+.info-pill-orange { background: rgba(249,115,22,.14);  color: #fdba74; border-color: rgba(249,115,22,.3);  }
+.info-pill-green  { background: rgba(34,197,94,.14);   color: #86efac; border-color: rgba(34,197,94,.3);   }
+.info-pill-gray   { background: rgba(107,114,128,.14); color: #9ca3af; border-color: rgba(107,114,128,.3); }
+
+/* Expandable detail panel */
+.info-expandable .info-expand-body {
+    display: none;
+    animation: fadeIn .2s ease;
+}
+.info-expandable.open .info-expand-body {
+    display: block;
+}
+.info-expandable .info-expand-toggle {
+    text-decoration: none !important;
+    font-size: 0.78rem;
+}
+.info-expandable .info-expand-toggle:hover { color: #c4b5fd !important; }
+.info-chevron {
+    transition: transform .2s;
+    display: inline-block;
+}
+.info-expandable.open .info-chevron {
+    transform: rotate(90deg);
+}
+
+/* Method comparison cards */
+.info-method-card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 8px;
+    padding: 12px;
+    height: 100%;
+}
+.info-method-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+.info-method-name {
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #e5e7eb;
+}
+.info-method-desc {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+.info-method-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.info-tag {
+    font-size: 0.62rem;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.07);
+    color: #9ca3af;
+    border: 1px solid rgba(255,255,255,.1);
+}
+
+/* Tip box */
+.info-tip {
+    background: rgba(250,204,21,.06);
+    border: 1px solid rgba(250,204,21,.2);
+    border-left: 3px solid #fbbf24;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: #d1d5db;
+    line-height: 1.55;
+}
+.info-tip strong { color: #fde68a; }
+.info-tip code   { color: #a5f3fc; background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 3px; }
+
+/* Inline help icon next to form labels */
+.info-help-icon {
+    color: #4b5563;
+    cursor: help;
+    margin-left: 4px;
+    font-size: 0.72rem;
+    transition: color .15s;
+}
+.info-help-icon:hover { color: #9ca3af; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}

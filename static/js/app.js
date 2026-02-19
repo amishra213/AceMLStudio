@@ -284,6 +284,8 @@ function navigateTo(section) {
     } else if (section === "templates") {
         templatesLoadList();
     }
+    // Re-init tooltips for the newly visible section
+    setTimeout(_initTooltips, 50);
 }
 
 // ─── Build a data table ─────────────────────────────────
@@ -5188,7 +5190,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateModelCheckboxes();
     loadChatHistory();
     initHelpPanels();
-    
+    initSpecializedEngineInfo();
+
     // Set up tuning model source toggle event listeners
     const tuneSourceRadios = document.querySelectorAll('input[name="tuneModelSource"]');
     if (tuneSourceRadios.length > 0) {
@@ -5199,3 +5202,38 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+// ════════════════════════════════════════════════════════
+//  SPECIALIZED ENGINE — Info panel init
+//  • Bootstrap tooltips for all data-bs-toggle="tooltip"
+//  • Expandable section toggle (.info-expand-toggle)
+// ════════════════════════════════════════════════════════
+function initSpecializedEngineInfo() {
+    // Init Bootstrap tooltips (re-run after any dynamic content load too)
+    _initTooltips();
+
+    // Expandable panels toggle
+    document.addEventListener("click", e => {
+        const btn = e.target.closest(".info-expand-toggle");
+        if (!btn) return;
+        const targetId = btn.dataset.target;
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+        panel.classList.toggle("open");
+    });
+}
+
+function _initTooltips() {
+    // Bootstrap 5 tooltip init
+    if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+            if (!el._bsTooltip) {
+                el._bsTooltip = new bootstrap.Tooltip(el, {
+                    html: false,
+                    trigger: "hover focus",
+                    delay: { show: 150, hide: 50 },
+                });
+            }
+        });
+    }
+}

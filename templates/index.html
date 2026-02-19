@@ -2022,10 +2022,106 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="adv-module-banner">
-                                <i class="fas fa-chart-area me-2"></i><strong>Time Series Engine</strong> — ARIMA, SARIMA, Exponential Smoothing, Prophet
+                                <i class="fas fa-chart-area me-2"></i><strong>Time Series Engine</strong> — Forecast future values from time-ordered data using classical statistical models (ARIMA, SARIMA, Exponential Smoothing) or modern ML-hybrid (Prophet)
                             </div>
                         </div>
                     </div>
+
+                    <!-- Method glossary -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-glossary-bar d-flex flex-wrap gap-2 align-items-center">
+                                <span class="info-glossary-label"><i class="fas fa-book-open me-1"></i>Methods:</span>
+                                <span class="info-pill info-pill-blue" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="AutoRegressive Integrated Moving Average. Models the autocorrelation structure of a series. Best for stationary or near-stationary data with no strong seasonality. Parameters: p (AR lags), d (differencing), q (MA lags).">
+                                    ARIMA <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-purple" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Seasonal ARIMA. Extends ARIMA with seasonal terms (P, D, Q, s). Use when your data shows regular repeating patterns — e.g. monthly sales that peak every December.">
+                                    SARIMA <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-teal" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Exponential Smoothing (Holt-Winters). Assigns exponentially decreasing weights to older observations. Three variants: Simple (level only), Double (level + trend), Triple (level + trend + season). Fast and interpretable.">
+                                    Exponential Smoothing <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-orange" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Facebook Prophet. Decomposes time series into trend + seasonality + holidays using a curve-fitting approach. Handles missing data, outliers, and multiple seasonality automatically. Ideal for business data with strong calendar effects.">
+                                    Prophet <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="ms-auto info-pill info-pill-gray" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Key metrics returned: MAE (Mean Absolute Error) — average forecast error in original units. RMSE (Root Mean Squared Error) — penalises large errors more. MAPE (Mean Absolute Percentage Error) — error as % of actual value, useful for comparing across scales. AIC/BIC — model complexity penalised fit scores, lower is better.">
+                                    <i class="fas fa-ruler me-1"></i>Metrics Guide <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Method detail cards (collapsible) -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-expandable collapsed" id="tsMethodCards">
+                                <button class="btn btn-link btn-sm text-muted p-0 mb-2 info-expand-toggle" data-target="tsMethodCards">
+                                    <i class="fas fa-chevron-right me-1 info-chevron"></i>Show method comparison &amp; when to use each
+                                </button>
+                                <div class="info-expand-body">
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(99,102,241,.15);color:#818cf8">AR</div>
+                                                <div class="info-method-name">ARIMA</div>
+                                                <div class="info-method-desc">No seasonality, stable variance. Suitable for stock prices, short time series.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">stationary data</span>
+                                                    <span class="info-tag">no seasonality</span>
+                                                    <span class="info-tag">&lt;5 years data</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(139,92,246,.15);color:#a78bfa">SA</div>
+                                                <div class="info-method-name">SARIMA</div>
+                                                <div class="info-method-desc">Recurring seasonal patterns. Retail monthly sales, energy demand, website traffic.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">seasonal patterns</span>
+                                                    <span class="info-tag">monthly/quarterly</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(20,184,166,.15);color:#2dd4bf">ES</div>
+                                                <div class="info-method-name">Exp. Smoothing</div>
+                                                <div class="info-method-desc">Fast, robust, good for short-horizon forecasts. Inventory planning, operational metrics.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">short horizon</span>
+                                                    <span class="info-tag">fast</span>
+                                                    <span class="info-tag">interpretable</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(249,115,22,.15);color:#fb923c">PR</div>
+                                                <div class="info-method-name">Prophet</div>
+                                                <div class="info-method-desc">Business data with holidays, multiple seasonality, missing values. Long-range forecasts.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">holiday effects</span>
+                                                    <span class="info-tag">missing data OK</span>
+                                                    <span class="info-tag">long-range</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="info-tip mt-2">
+                                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                                        <strong>Tip:</strong> Use <em>Analyze</em> first to check stationarity (ADF test) and autocorrelation (ACF/PACF plots) before choosing a method. Non-stationary data (p-value &gt; 0.05) usually needs differencing — set <code>d≥1</code> in ARIMA.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card glass-card">
@@ -2033,26 +2129,34 @@
                                 <div class="card-body">
                                     <div class="row g-3 align-items-end">
                                         <div class="col-md-2">
-                                            <label class="form-label">Date/Time Column</label>
+                                            <label class="form-label">Date/Time Column
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Must be a date or datetime column. AceML will parse common formats automatically (YYYY-MM-DD, DD/MM/YYYY, Unix timestamp)."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="tsDateCol"></select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Target Value Column</label>
+                                            <label class="form-label">Target Value Column
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="The numeric column you want to forecast — e.g. sales, temperature, page_views. Should be continuous and measured at regular intervals."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="tsValueCol"></select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Frequency</label>
+                                            <label class="form-label">Frequency
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="How often observations are recorded. Must match your data: if you have one row per day, choose Daily. Mismatch causes incorrect seasonality detection."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="tsFreq">
-                                                <option value="D">Daily</option>
-                                                <option value="W">Weekly</option>
-                                                <option value="M">Monthly</option>
-                                                <option value="Q">Quarterly</option>
-                                                <option value="Y">Yearly</option>
-                                                <option value="H">Hourly</option>
+                                                <option value="H">Hourly — e.g. sensor, energy</option>
+                                                <option value="D" selected>Daily — e.g. sales, traffic</option>
+                                                <option value="W">Weekly — e.g. reports</option>
+                                                <option value="M">Monthly — e.g. revenue</option>
+                                                <option value="Q">Quarterly — e.g. financials</option>
+                                                <option value="Y">Yearly — e.g. macro trends</option>
                                             </select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Method</label>
+                                            <label class="form-label">Method
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Not sure? Run Analyze first, then pick based on the stationarity test result and whether your data shows seasonal patterns."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="tsMethod">
                                                 <option value="arima">ARIMA</option>
                                                 <option value="sarima">SARIMA</option>
@@ -2061,7 +2165,9 @@
                                             </select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Forecast Periods</label>
+                                            <label class="form-label">Forecast Periods
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Number of future steps to forecast. In Daily frequency: 30 = 1 month ahead. In Monthly: 12 = 1 year ahead. Longer forecasts have wider confidence intervals."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <input type="number" class="form-control form-control-sm" id="tsForecastPeriods" value="30" min="1" max="365">
                                         </div>
                                         <div class="col-md-2 d-flex gap-2 align-items-end">
@@ -2088,10 +2194,104 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="adv-module-banner">
-                                <i class="fas fa-exclamation-triangle me-2"></i><strong>Anomaly Detection Engine</strong> — Isolation Forest, One-Class SVM, Autoencoder, LSTM
+                                <i class="fas fa-exclamation-triangle me-2"></i><strong>Anomaly Detection Engine</strong> — Automatically find unusual, rare, or suspicious data points without needing labelled examples (unsupervised)
                             </div>
                         </div>
                     </div>
+
+                    <!-- Method glossary pills -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-glossary-bar d-flex flex-wrap gap-2 align-items-center">
+                                <span class="info-glossary-label"><i class="fas fa-book-open me-1"></i>Methods:</span>
+                                <span class="info-pill info-pill-blue" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Isolation Forest: Randomly partitions data with decision trees. Anomalies are isolated faster (require fewer splits) because they lie in sparse regions. Fast, scalable, handles high dimensions well. The default recommendation for most tabular datasets.">
+                                    Isolation Forest <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-purple" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="One-Class SVM: Learns a decision boundary around normal data in a high-dimensional kernel space. Anything outside the boundary is anomalous. Works well for small-to-medium datasets where the normal class is well-defined. Sensitive to feature scaling — always normalise first.">
+                                    One-Class SVM <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-teal" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Autoencoder: Neural network trained to compress and reconstruct normal data. High reconstruction error = anomaly. Captures complex non-linear patterns. Best for large datasets and image/sequence data. Requires more tuning than tree-based methods.">
+                                    Autoencoder <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-orange" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Local Outlier Factor (LOF): Compares the local density of a point to its neighbours. Points in much lower-density regions than their neighbours are flagged. Excellent at finding cluster-based anomalies that global methods miss. Memory-intensive on large datasets.">
+                                    LOF <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="ms-auto info-pill info-pill-gray" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Contamination: Your estimate of what fraction of the dataset is anomalous. 0.05 = you expect ~5% anomalies. If unknown, start with 0.05. Setting too low misses anomalies; too high flags normal data. In fraud detection use 0.001–0.01. In sensor monitoring use 0.01–0.1.">
+                                    <i class="fas fa-ruler me-1"></i>Contamination Guide <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expandable comparison -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-expandable collapsed" id="anomalyMethodCards">
+                                <button class="btn btn-link btn-sm text-muted p-0 mb-2 info-expand-toggle" data-target="anomalyMethodCards">
+                                    <i class="fas fa-chevron-right me-1 info-chevron"></i>Show method comparison &amp; when to use each
+                                </button>
+                                <div class="info-expand-body">
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(99,102,241,.15);color:#818cf8">IF</div>
+                                                <div class="info-method-name">Isolation Forest</div>
+                                                <div class="info-method-desc">Best default choice. Fast, scales to millions of rows. Handles high-dimensional data well.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">general purpose</span>
+                                                    <span class="info-tag">large datasets</span>
+                                                    <span class="info-tag">fast</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(139,92,246,.15);color:#a78bfa">SVM</div>
+                                                <div class="info-method-name">One-Class SVM</div>
+                                                <div class="info-method-desc">Strong when normal class is tightly clustered. Normalise features first. Slow on &gt;50k rows.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">small-medium data</span>
+                                                    <span class="info-tag">dense normal class</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(20,184,166,.15);color:#2dd4bf">AE</div>
+                                                <div class="info-method-name">Autoencoder</div>
+                                                <div class="info-method-desc">Captures non-linear patterns. Best for large datasets. High reconstruction error = anomaly.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">non-linear patterns</span>
+                                                    <span class="info-tag">large data</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(249,115,22,.15);color:#fb923c">LOF</div>
+                                                <div class="info-method-name">Local Outlier Factor</div>
+                                                <div class="info-method-desc">Detects local anomalies within dense clusters. Good for spatial/geographic data.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">local outliers</span>
+                                                    <span class="info-tag">clustered data</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="info-tip mt-2">
+                                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                                        <strong>Tip:</strong> Use <em>Compare All</em> to run all 4 methods and see side-by-side agreement scores. Points flagged by 3+ methods are very likely true anomalies (ensemble effect). Always inspect flagged rows manually before acting on them.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card glass-card">
@@ -2099,25 +2299,33 @@
                                 <div class="card-body">
                                     <div class="row g-3 align-items-end">
                                         <div class="col-md-3">
-                                            <label class="form-label">Detection Method</label>
+                                            <label class="form-label">Detection Method
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Isolation Forest is the recommended default. Use Compare All to test all methods simultaneously."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="anomalyMethod">
-                                                <option value="isolation_forest">Isolation Forest</option>
+                                                <option value="isolation_forest">Isolation Forest ★ Recommended</option>
                                                 <option value="one_class_svm">One-Class SVM</option>
-                                                <option value="autoencoder">Autoencoder</option>
-                                                <option value="lof">Local Outlier Factor</option>
+                                                <option value="autoencoder">Autoencoder (Neural Net)</option>
+                                                <option value="lof">Local Outlier Factor (LOF)</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Contamination (% anomalies expected)</label>
-                                            <input type="number" class="form-control form-control-sm" id="anomalyContamination" value="0.05" min="0.01" max="0.5" step="0.01">
+                                            <label class="form-label">Contamination
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Expected fraction of anomalies in your data. 0.05 = 5%. Typical ranges: fraud detection 0.001–0.01, sensor monitoring 0.01–0.1, general QA 0.03–0.1. Start with 0.05 if unsure."><i class="fas fa-question-circle"></i></span>
+                                            </label>
+                                            <input type="number" class="form-control form-control-sm" id="anomalyContamination" value="0.05" min="0.001" max="0.5" step="0.01">
+                                            <small class="text-muted" style="font-size:.7rem">Fraction of data expected to be anomalous (0.001–0.5)</small>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">Feature Columns <small class="text-muted">(leave empty = all numeric)</small></label>
+                                            <label class="form-label">Feature Columns
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Select which numeric columns to include. Leave empty to use all numeric columns. Focus on domain-relevant features — too many irrelevant features can dilute anomaly signals (curse of dimensionality)."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="anomalyFeatureCols" multiple style="height:72px"></select>
+                                            <small class="text-muted" style="font-size:.7rem">Leave empty = all numeric columns</small>
                                         </div>
                                         <div class="col-md-2 d-flex flex-column gap-2 align-items-stretch">
                                             <button class="btn btn-warning btn-sm" id="anomalyDetectBtn"><i class="fas fa-search me-1"></i>Detect Anomalies</button>
-                                            <button class="btn btn-outline-secondary btn-sm" id="anomalyAllMethodsBtn"><i class="fas fa-layer-group me-1"></i>Compare All</button>
+                                            <button class="btn btn-outline-secondary btn-sm" id="anomalyAllMethodsBtn"><i class="fas fa-layer-group me-1"></i>Compare All Methods</button>
                                         </div>
                                     </div>
                                 </div>
@@ -2139,10 +2347,93 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="adv-module-banner">
-                                <i class="fas fa-comment-dots me-2"></i><strong>NLP Engine</strong> — Sentiment, Keywords, NER, Topics, Classification, Vectorization
+                                <i class="fas fa-comment-dots me-2"></i><strong>NLP Engine</strong> — Extract meaning from text data: sentiment, topics, entities, keywords, and ML-ready feature vectors
                             </div>
                         </div>
                     </div>
+
+                    <!-- Task glossary pills -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-glossary-bar d-flex flex-wrap gap-2 align-items-center">
+                                <span class="info-glossary-label"><i class="fas fa-book-open me-1"></i>Analysis types:</span>
+                                <span class="info-pill info-pill-blue" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Sentiment Analysis: Classifies text as Positive, Negative, or Neutral and returns a polarity score (−1 to +1). Uses rule-based VADER for speed or a transformer model for accuracy. Great for reviews, social media, and survey responses.">
+                                    Sentiment <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-purple" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Keyword Extraction: Identifies the most statistically significant words and n-grams in your text corpus using TF-IDF scoring. TF-IDF (Term Frequency–Inverse Document Frequency) ranks words that appear frequently in a document but rarely across the whole corpus.">
+                                    Keywords / TF-IDF <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-teal" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Named Entity Recognition (NER): Detects and labels real-world entities in text — people (PER), organisations (ORG), locations (LOC), dates (DATE), money (MONEY), etc. Uses spaCy's pre-trained model.">
+                                    NER <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-orange" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Topic Modeling (LDA): Latent Dirichlet Allocation discovers hidden thematic topics across a corpus. Each document gets a topic distribution (e.g. 60% Tech, 30% Finance, 10% Health). Unsupervised — no labels needed. Tuning n_topics is important: start with 5–10.">
+                                    LDA Topics <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-green" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Vectorization converts text to numeric features for ML models. TF-IDF creates a sparse matrix where each cell is the TF-IDF score of a word. BoW (Bag of Words) uses raw counts. Both ignore word order. The resulting matrix can be directly fed into classifiers like Logistic Regression or XGBoost.">
+                                    Vectorize (TF-IDF / BoW) <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-gray" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Text Statistics: Returns per-document metrics — word count, sentence count, avg word length, lexical diversity (unique words / total words), readability score (Flesch-Kincaid). Useful for data quality checks before NLP modelling.">
+                                    Text Stats <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expandable guide -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-expandable collapsed" id="nlpGuideCards">
+                                <button class="btn btn-link btn-sm text-muted p-0 mb-2 info-expand-toggle" data-target="nlpGuideCards">
+                                    <i class="fas fa-chevron-right me-1 info-chevron"></i>Show task guide — which analysis type for which use case?
+                                </button>
+                                <div class="info-expand-body">
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-4">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(99,102,241,.15);color:#818cf8"><i class="fas fa-smile"></i></div>
+                                                <div class="info-method-name">Sentiment Analysis</div>
+                                                <div class="info-method-desc">Customer reviews, social media posts, survey free-text, support tickets. Outputs polarity score and label.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">reviews</span><span class="info-tag">social media</span><span class="info-tag">surveys</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(139,92,246,.15);color:#a78bfa"><i class="fas fa-tags"></i></div>
+                                                <div class="info-method-name">NER + Keywords</div>
+                                                <div class="info-method-desc">News articles, contracts, medical notes. Extract who/what/where/when without reading every document.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">information extraction</span><span class="info-tag">documents</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(249,115,22,.15);color:#fb923c"><i class="fas fa-sitemap"></i></div>
+                                                <div class="info-method-name">Topics + Vectorize</div>
+                                                <div class="info-method-desc">Discover themes in large text collections. Then vectorize to create numeric features for downstream ML classifiers.</div>
+                                                <div class="info-method-tags">
+                                                    <span class="info-tag">topic discovery</span><span class="info-tag">ML features</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="info-tip mt-2">
+                                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                                        <strong>Tip:</strong> Run <strong>Text Statistics</strong> first to check data quality — short texts (&lt;3 words) and very long texts (&gt;1000 words) behave differently in NLP models. Use <strong>Sample Size</strong> to start with 500 rows for speed; increase once you're satisfied with results.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card glass-card">
@@ -2150,26 +2441,32 @@
                                 <div class="card-body">
                                     <div class="row g-3 align-items-end">
                                         <div class="col-md-2">
-                                            <button class="btn btn-outline-info btn-sm w-100" id="nlpDetectColsBtn"><i class="fas fa-search me-1"></i>Auto-detect Columns</button>
+                                            <button class="btn btn-outline-info btn-sm w-100" id="nlpDetectColsBtn"><i class="fas fa-search me-1"></i>Auto-detect Text Cols</button>
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Text Column</label>
+                                            <label class="form-label">Text Column
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Must be a string/object column containing free text. Numeric, date, or ID columns won't produce meaningful NLP results. Click Auto-detect to find likely text columns automatically."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="nlpTextCol"></select>
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Analysis Type</label>
+                                            <label class="form-label">Analysis Type
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Hover each type in the pill bar above for a detailed explanation. Start with Sentiment or Text Stats to validate your text column before running heavier tasks like LDA Topics."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="nlpTask">
-                                                <option value="sentiment">Sentiment Analysis</option>
-                                                <option value="keywords">Keyword Extraction</option>
-                                                <option value="ner">Named Entity Recognition</option>
-                                                <option value="topics">Topic Modeling (LDA)</option>
-                                                <option value="wordcloud">Word Cloud Data</option>
-                                                <option value="stats">Text Statistics</option>
-                                                <option value="vectorize">Vectorize (TF-IDF / BoW)</option>
+                                                <option value="sentiment">Sentiment Analysis — positive/negative/neutral scores</option>
+                                                <option value="keywords">Keyword Extraction — top TF-IDF terms</option>
+                                                <option value="ner">Named Entity Recognition — people, orgs, locations</option>
+                                                <option value="topics">Topic Modeling (LDA) — discover hidden themes</option>
+                                                <option value="wordcloud">Word Cloud Data — frequency table</option>
+                                                <option value="stats">Text Statistics — word count, readability, diversity</option>
+                                                <option value="vectorize">Vectorize (TF-IDF / BoW) — numeric ML features</option>
                                             </select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Sample Size (rows)</label>
+                                            <label class="form-label">Sample Size (rows)
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Process a random sample for speed. LDA Topics and Vectorize are slower — start with 500 rows. Sentiment and Keywords are fast and can handle 5000+ rows."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <input type="number" class="form-control form-control-sm" id="nlpSampleSize" value="500" min="10" max="10000">
                                         </div>
                                         <div class="col-md-2 d-flex align-items-end">
@@ -2195,10 +2492,79 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="adv-module-banner">
-                                <i class="fas fa-eye me-2"></i><strong>Vision Engine</strong> — Image preprocessing, feature extraction, classification
+                                <i class="fas fa-eye me-2"></i><strong>Vision Engine</strong> — Analyse individual images: extract statistical properties, generate ML-ready feature vectors, and inspect pixel-level characteristics
                             </div>
                         </div>
                     </div>
+
+                    <!-- Operation + format glossary -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-glossary-bar d-flex flex-wrap gap-2 align-items-center">
+                                <span class="info-glossary-label"><i class="fas fa-book-open me-1"></i>Operations:</span>
+                                <span class="info-pill info-pill-blue" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Image Statistics: Returns dimensions (width × height), colour mode (RGB/Grayscale), channel statistics (mean, std, min, max per R/G/B), histogram of pixel intensity distribution, and dominant colour analysis. Run this first to understand image quality before modelling.">
+                                    Image Statistics <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-purple" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Feature Extraction: Computes a compact numerical representation of the image suitable for ML. Includes: flattened pixel values (raw), HOG (Histogram of Oriented Gradients — shape/edge descriptor), colour histogram features, and optionally deep CNN embeddings. Use these features as input columns for classifiers.">
+                                    Feature Extraction <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="ms-2 info-pill info-pill-gray" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Supported formats: JPEG (.jpg, .jpeg) — most common, lossy compression. PNG (.png) — lossless, supports transparency. BMP (.bmp) — uncompressed. TIFF (.tiff) — used in medical/scientific imaging, supports 16-bit. WebP (.webp) — modern web format. Max recommended file size: 10 MB.">
+                                    <i class="fas fa-file-image me-1"></i>Supported Formats <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="ms-auto info-pill info-pill-teal" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="HOG (Histogram of Oriented Gradients): Divides the image into small cells, computes the gradient direction histogram per cell, then concatenates them. Captures local shape information regardless of lighting changes. Widely used for object detection and pedestrian detection before deep learning era.">
+                                    HOG explained <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expandable guide -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-expandable collapsed" id="visionGuideCards">
+                                <button class="btn btn-link btn-sm text-muted p-0 mb-2 info-expand-toggle" data-target="visionGuideCards">
+                                    <i class="fas fa-chevron-right me-1 info-chevron"></i>Show vision analysis workflow &amp; key concepts
+                                </button>
+                                <div class="info-expand-body">
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-4">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(99,102,241,.15);color:#818cf8"><i class="fas fa-chart-bar"></i></div>
+                                                <div class="info-method-name">Step 1 — Inspect</div>
+                                                <div class="info-method-desc">Run <em>Image Statistics</em> to check dimensions, colour mode, and pixel distribution. Ensure consistent size and mode across your image dataset.</div>
+                                                <div class="info-method-tags"><span class="info-tag">quality check</span><span class="info-tag">first step</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(139,92,246,.15);color:#a78bfa"><i class="fas fa-vector-square"></i></div>
+                                                <div class="info-method-name">Step 2 — Extract Features</div>
+                                                <div class="info-method-desc">Run <em>Feature Extraction</em> to produce numeric vectors (HOG, colour histograms). These vectors become the feature columns for training a classifier.</div>
+                                                <div class="info-method-tags"><span class="info-tag">ML-ready features</span><span class="info-tag">HOG</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(20,184,166,.15);color:#2dd4bf"><i class="fas fa-brain"></i></div>
+                                                <div class="info-method-name">Step 3 — Train</div>
+                                                <div class="info-method-desc">Use the extracted features in the Train Models module with SVM, Random Forest, or XGBoost. Deep learning (CNN) requires a full deep learning framework.</div>
+                                                <div class="info-method-tags"><span class="info-tag">SVM</span><span class="info-tag">Random Forest</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="info-tip mt-2">
+                                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                                        <strong>Key concepts:</strong> <strong>Pixel intensity</strong> = 0 (black) to 255 (white) per channel. <strong>RGB</strong> = 3 channels (Red, Green, Blue). <strong>Grayscale</strong> = 1 channel, faster to process. <strong>Normalisation</strong> = dividing pixel values by 255 to get [0,1] range — always do this before feeding images into ML models.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card glass-card">
@@ -2206,18 +2572,24 @@
                                 <div class="card-body">
                                     <div class="row g-3 align-items-end">
                                         <div class="col-md-3">
-                                            <label class="form-label">Upload Image File</label>
+                                            <label class="form-label">Upload Image File
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Supported: JPG, PNG, BMP, TIFF, WebP. Max recommended size: 10 MB. For best results use images at least 64×64 pixels."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <input type="file" class="form-control form-control-sm" id="visionImageFile" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp">
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Or Image URL</label>
-                                            <input type="text" class="form-control form-control-sm" id="visionImageUrl" placeholder="https://...">
+                                            <label class="form-label">Or Image URL
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Enter a direct URL to a publicly accessible image (must end in .jpg, .png etc or return image content-type). The server will download and process it."><i class="fas fa-question-circle"></i></span>
+                                            </label>
+                                            <input type="text" class="form-control form-control-sm" id="visionImageUrl" placeholder="https://example.com/image.jpg">
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Operation</label>
+                                            <label class="form-label">Operation
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Image Statistics: dimensions, colour channels, pixel distribution. Feature Extraction: HOG descriptor + colour histogram → numeric vector for ML."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="visionOperation">
-                                                <option value="stats">Image Statistics</option>
-                                                <option value="features">Feature Extraction</option>
+                                                <option value="stats">Image Statistics — dimensions, colour, histogram</option>
+                                                <option value="features">Feature Extraction — HOG + colour histogram vector</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3 d-flex gap-2 align-items-end">
@@ -2245,10 +2617,87 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="adv-module-banner">
-                                <i class="fas fa-project-diagram me-2"></i><strong>Knowledge Graph</strong> — Schema graphs, entity relationships, centrality, community detection
+                                <i class="fas fa-share-alt me-2"></i><strong>Knowledge Graph</strong> — Visualise hidden relationships between features and values as a network. Discover which features are most connected, find clusters, and detect community structure
                             </div>
                         </div>
                     </div>
+
+                    <!-- Analysis type + metrics glossary pills -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-glossary-bar d-flex flex-wrap gap-2 align-items-center">
+                                <span class="info-glossary-label"><i class="fas fa-book-open me-1"></i>Analysis types:</span>
+                                <span class="info-pill info-pill-blue" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Schema Graph (Feature Correlations): Nodes = columns in your dataset. Edges = drawn when Pearson correlation between two columns exceeds the threshold. Reveals which features move together — useful for multicollinearity detection and feature selection. High correlation (>0.9) between features = consider removing one.">
+                                    Schema Graph <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-purple" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Entity Graph (Value Co-occurrence): Nodes = unique categorical values (e.g. product names, customer IDs). Edges = drawn when two values appear together in the same row (co-purchase, co-location, etc.). Reveals association patterns without explicit joins. Good for market basket analysis and recommendation systems.">
+                                    Entity Graph <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-teal" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Graph Metrics — key centrality measures: Degree Centrality = number of direct connections (how popular is a node). Betweenness Centrality = how often a node lies on the shortest path between others (information bottleneck/bridge). PageRank = probability of arriving at a node by random walk (global importance, same algorithm as Google Search).">
+                                    Graph Metrics <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                                <span class="info-pill info-pill-orange" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                    title="Community Detection: Groups nodes into clusters where internal connections are denser than external ones. Uses the Louvain algorithm (maximises Modularity score). Modularity Q ranges from −0.5 to 1: Q > 0.3 indicates strong community structure. Applications: customer segmentation, feature grouping, fraud ring detection.">
+                                    Community Detection <i class="fas fa-info-circle ms-1 opacity-50"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics glossary + tips (expandable) -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="info-expandable collapsed" id="graphGuideCards">
+                                <button class="btn btn-link btn-sm text-muted p-0 mb-2 info-expand-toggle" data-target="graphGuideCards">
+                                    <i class="fas fa-chevron-right me-1 info-chevron"></i>Show graph metrics glossary &amp; interpretation guide
+                                </button>
+                                <div class="info-expand-body">
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(99,102,241,.15);color:#818cf8"><i class="fas fa-circle-dot"></i></div>
+                                                <div class="info-method-name">Degree Centrality</div>
+                                                <div class="info-method-desc">Number of direct connections normalised by (n−1). High degree = a "hub" feature correlated with many others. Candidates for feature importance.</div>
+                                                <div class="info-method-tags"><span class="info-tag">connections</span><span class="info-tag">hub detection</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(139,92,246,.15);color:#a78bfa"><i class="fas fa-road"></i></div>
+                                                <div class="info-method-name">Betweenness</div>
+                                                <div class="info-method-desc">Fraction of shortest paths passing through this node. High betweenness = a bridge — removing it disconnects the graph. Important for robustness analysis.</div>
+                                                <div class="info-method-tags"><span class="info-tag">bridge nodes</span><span class="info-tag">bottleneck</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(20,184,166,.15);color:#2dd4bf"><i class="fas fa-star"></i></div>
+                                                <div class="info-method-name">PageRank</div>
+                                                <div class="info-method-desc">Global importance score based on random walk probability. A feature with high PageRank is important because important features point to it. More robust than degree for indirect influence.</div>
+                                                <div class="info-method-tags"><span class="info-tag">global influence</span><span class="info-tag">indirect links</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="info-method-card">
+                                                <div class="info-method-icon" style="background:rgba(249,115,22,.15);color:#fb923c"><i class="fas fa-layer-group"></i></div>
+                                                <div class="info-method-name">Modularity (Q)</div>
+                                                <div class="info-method-desc">Measures quality of community structure. Q &lt; 0.2: weak structure. Q 0.2–0.5: moderate clusters. Q &gt; 0.5: very clear communities. Used by Louvain community detection.</div>
+                                                <div class="info-method-tags"><span class="info-tag">cluster quality</span><span class="info-tag">Louvain</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="info-tip mt-2">
+                                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                                        <strong>Workflow:</strong> (1) Start with <em>Schema Graph</em> at threshold 0.3 to see correlated feature clusters. (2) Lower threshold (0.1) reveals weak relationships; raise it (0.6) for only the strongest. (3) Run <em>Graph Metrics</em> to rank features by PageRank — top-ranked features are the most systemically important for modelling. (4) Use <em>Community Detection</em> to group features into thematic clusters before feature selection.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card glass-card">
@@ -2256,18 +2705,22 @@
                                 <div class="card-body">
                                     <div class="row g-3 align-items-end">
                                         <div class="col-md-4">
-                                            <label class="form-label">Analysis Type</label>
+                                            <label class="form-label">Analysis Type
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Schema Graph: feature correlations. Entity Graph: categorical value co-occurrences. Graph Metrics: centrality scores. Community Detection: Louvain clustering."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <select class="form-select form-select-sm" id="graphType">
-                                                <option value="schema">Schema Graph (Feature Correlations)</option>
-                                                <option value="entity">Entity Graph (Value Co-occurrence)</option>
-                                                <option value="metrics">Graph Metrics (Centrality, PageRank)</option>
-                                                <option value="communities">Community Detection</option>
+                                                <option value="schema">Schema Graph — feature correlation network</option>
+                                                <option value="entity">Entity Graph — categorical value co-occurrence</option>
+                                                <option value="metrics">Graph Metrics — degree, betweenness, PageRank</option>
+                                                <option value="communities">Community Detection — Louvain clustering</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Correlation Threshold</label>
+                                            <label class="form-label">Correlation Threshold
+                                                <span class="info-help-icon" data-bs-toggle="tooltip" title="Pearson correlation cutoff for drawing an edge between two features. 0.3 = moderate correlation (recommended starting point). 0.6 = only strong relationships. 0.1 = very permissive, may produce very dense graphs."><i class="fas fa-question-circle"></i></span>
+                                            </label>
                                             <input type="number" class="form-control form-control-sm" id="graphThreshold" value="0.3" min="0" max="1" step="0.05">
-                                            <small class="text-muted">Minimum correlation to draw an edge</small>
+                                            <small class="text-muted" style="font-size:.7rem">Min |correlation| to draw an edge (0–1). Start with 0.3.</small>
                                         </div>
                                         <div class="col-md-5 d-flex gap-2 align-items-end">
                                             <button class="btn btn-primary btn-sm flex-fill" id="graphBuildBtn"><i class="fas fa-sitemap me-1"></i>Build Graph</button>
@@ -2281,7 +2734,7 @@
                             <div class="card glass-card">
                                 <div class="card-header"><i class="fas fa-network-wired me-2"></i>Graph Results</div>
                                 <div class="card-body" id="graphResultsArea">
-                                    <div class="text-center text-muted py-4"><i class="fas fa-project-diagram fa-3x mb-2 d-block opacity-25"></i><p>Build a graph to explore feature relationships</p></div>
+                                    <div class="text-center text-muted py-4"><i class="fas fa-share-alt fa-3x mb-2 d-block opacity-25"></i><p>Build a graph to explore feature relationships</p></div>
                                 </div>
                             </div>
                         </div>
