@@ -9,7 +9,7 @@ import os
 import json
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from config import Config
 
 logger = logging.getLogger("aceml.experiment_tracker")
@@ -30,7 +30,7 @@ class ExperimentTracker:
                         data_info: dict | None = None,
                         notes: str = "") -> dict:
         exp_id = str(uuid.uuid4())[:8]
-        timestamp = datetime.utcnow().isoformat() + "Z"
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         record = {
             "id": exp_id,
