@@ -4634,6 +4634,37 @@ document.addEventListener("click", e => {
 //  PHASE 4 — INDUSTRY TEMPLATES
 // ════════════════════════════════════════════════════════
 
+// ── helper: severity badge colour ─────────────────────────────────
+function _severityBadge(sev) {
+    const map = { error: "danger", warning: "warning", info: "info" };
+    return map[sev] || "secondary";
+}
+
+// ── helper: render model-recommendation map {task:[models,...]} ───
+function _renderModelMap(obj) {
+    if (!obj || typeof obj !== "object") return "";
+    return Object.entries(obj).map(([task, models]) =>
+        `<div class="mb-1"><span class="text-muted small text-capitalize me-2">${task}:</span>
+         ${models.map(m => `<span class="badge bg-secondary me-1">${m}</span>`).join("")}</div>`
+    ).join("");
+}
+
+// ── helper: render metric map {task:[metrics,...]} ─────────────────
+function _renderMetricMap(obj) {
+    if (!obj || typeof obj !== "object") return "";
+    return Object.entries(obj).map(([task, metrics]) =>
+        `<div class="mb-1"><span class="text-muted small text-capitalize me-2">${task}:</span>
+         ${metrics.map(m => `<span class="badge bg-info bg-opacity-25 text-info me-1">${m}</span>`).join("")}</div>`
+    ).join("");
+}
+
+// ── helper: progress bar for coverage/completeness ────────────────
+function _progressBar(pct, cls = "bg-success") {
+    const p = Math.round(pct);
+    return `<div class="progress" style="height:6px;"><div class="progress-bar ${cls}" style="width:${p}%"></div></div>
+            <small class="text-muted">${p}%</small>`;
+}
+
 async function templatesLoadList() {
     try {
         const res = await API.get("/api/templates/list");
@@ -4641,8 +4672,46 @@ async function templatesLoadList() {
         const templates = res.data?.templates || [];
         const sel = document.getElementById("templateSelect");
         if (!sel) return;
-        sel.innerHTML = templates.map(t => `<option value="${t.id}">${t.name} — ${t.industry}</option>`).join("");
+        sel.innerHTML = '<option value="">— Select a template —</option>' +
+            templates.map(t =>
+                `<option value="${t.id}">${t.icon || ""} ${t.name}  (${t.n_use_cases} use cases, ${t.n_feature_steps} FE steps)</option>`
+            ).join("");
+        // Also render the visual card grid
+        _renderTemplateCards(templates);
     } catch(e) {}
+}
+
+function _renderTemplateCards(templates) {
+    const grid = document.getElementById("templateCardGrid");
+    if (!grid) return;
+    grid.innerHTML = templates.map(t => `
+        <div class="col-sm-6 col-lg-4">
+            <div class="card glass-card h-100 template-card" data-template-id="${t.id}" style="cursor:pointer;border:1px solid transparent;transition:border .15s">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center mb-2 gap-2">
+                        <span style="font-size:1.6rem">${t.icon || "📋"}</span>
+                        <span class="fw-semibold">${t.name}</span>
+                    </div>
+                    <p class="text-muted small mb-2" style="line-height:1.4">${t.description}</p>
+                    <div class="d-flex gap-3">
+                        <small class="text-muted"><i class="fas fa-tasks me-1 text-info"></i>${t.n_use_cases} use cases</small>
+                        <small class="text-muted"><i class="fas fa-cogs me-1 text-warning"></i>${t.n_feature_steps} FE steps</small>
+                    </div>
+                </div>
+            </div>
+        </div>`
+    ).join("");
+
+    // Click-to-select cards
+    grid.querySelectorAll(".template-card").forEach(card => {
+        card.addEventListener("click", () => {
+            grid.querySelectorAll(".template-card").forEach(c => c.style.borderColor = "transparent");
+            card.style.borderColor = "var(--accent, #6366f1)";
+            const sel = document.getElementById("templateSelect");
+            if (sel) sel.value = card.dataset.templateId;
+            templateViewDetails();
+        });
+    });
 }
 
 async function templateViewDetails() {
@@ -4650,54 +4719,197 @@ async function templateViewDetails() {
     const area = document.getElementById("templateDetailsArea");
     if (!id) { showToast("Select a template first", "warning"); return; }
 
-    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-secondary"></div></div>';
+    area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-secondary"></div><p class="mt-2 text-muted small">Loading template…</p></div>';
 
     try {
         const res = await API.get(`/api/templates/get/${id}`);
         if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
         const t = res.data;
-        let html = `<div class="adv-result-header"><i class="fas fa-layer-group text-info me-2"></i>${t.name}</div>
-            <div class="adv-kv-grid mb-3">
-                <div class="adv-kv"><span>Industry</span><span>${t.industry}</span></div>
-                <div class="adv-kv"><span>Task Type</span><span>${t.task_type ?? "—"}</span></div>
-                <div class="adv-kv"><span>Target Column</span><span>${t.target_column ?? "—"}</span></div>
+
+        // Use cases
+        const useCasesHtml = (t.use_cases || []).map(u =>
+            `<span class="badge bg-primary bg-opacity-20 text-primary me-1 mb-1">${u}</span>`
+        ).join("");
+
+        // Key feature categories
+        const keyFeaturesHtml = Object.entries(t.key_features || {}).map(([cat, cols]) =>
+            `<div class="mb-1"><span class="text-muted small text-capitalize me-2">${cat.replace(/_/g, " ")}:</span>
+             ${cols.map(c => `<code class="small">${c}</code>`).join(", ")}</div>`
+        ).join("");
+
+        // Feature engineering steps
+        const feStepsHtml = (t.feature_engineering || []).map((step, i) => `
+            <div class="d-flex gap-2 mb-2 p-2 rounded" style="background:rgba(255,255,255,.04)">
+                <span class="badge bg-secondary rounded-circle d-flex align-items-center justify-content-center" style="width:22px;height:22px;font-size:.7rem;flex-shrink:0">${i+1}</span>
+                <div>
+                    <div class="small fw-semibold">${step.step.replace(/_/g, " ")}</div>
+                    <div class="small text-muted">${step.description}</div>
+                    <div class="mt-1">
+                        <small class="text-muted me-2">Needs:</small>
+                        ${step.columns_needed.map(c => `<code class="small me-1">${c}</code>`).join("")}
+                        <small class="text-muted ms-2 me-1">→ Produces:</small>
+                        ${step.output_features.map(c => `<code class="small text-success me-1">${c}</code>`).join("")}
+                    </div>
+                </div>
+            </div>`
+        ).join("");
+
+        // Data quality checks
+        const dqHtml = (t.data_quality_checks || []).map(c =>
+            `<li class="small text-muted mb-1"><i class="fas fa-shield-alt text-warning me-2" style="font-size:.7rem"></i>${c}</li>`
+        ).join("");
+
+        // Target hints
+        const targetHintsHtml = (t.target_column_hints || []).map(h =>
+            `<code class="small me-1">${h}</code>`
+        ).join("");
+
+        area.innerHTML = `
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <span style="font-size:2.5rem">${t.icon || "📋"}</span>
+                <div>
+                    <h5 class="mb-0 fw-bold">${t.name}</h5>
+                    <p class="text-muted small mb-0">${t.description}</p>
+                </div>
             </div>
-            <p class="text-muted small mb-3">${t.description ?? ""}</p>`;
-        if (t.recommended_models?.length) {
-            html += `<div class="adv-section-label">Recommended Models</div>
-                <div class="d-flex flex-wrap gap-1 mb-3">${t.recommended_models.map(m => `<span class="badge bg-secondary">${m}</span>`).join("")}</div>`;
+
+            <div class="adv-section-label">Use Cases</div>
+            <div class="mb-3">${useCasesHtml}</div>
+
+            <div class="adv-section-label">Target Column Hints</div>
+            <div class="mb-3">${targetHintsHtml || '<span class="text-muted small">—</span>'}</div>
+
+            <div class="adv-section-label">Key Feature Categories</div>
+            <div class="mb-3">${keyFeaturesHtml || '<span class="text-muted small">—</span>'}</div>
+
+            <div class="adv-section-label">Feature Engineering Steps (${(t.feature_engineering||[]).length})</div>
+            <div class="mb-3">${feStepsHtml}</div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="adv-section-label">Recommended Models</div>
+                    ${_renderModelMap(t.recommended_models)}
+                </div>
+                <div class="col-md-6">
+                    <div class="adv-section-label">Primary Evaluation Metrics</div>
+                    ${_renderMetricMap(t.primary_metrics)}
+                </div>
+            </div>
+
+            <div class="adv-section-label">Data Quality Checks</div>
+            <ul class="list-unstyled mb-0">${dqHtml}</ul>`;
+
+        // Sync card highlight
+        const card = document.querySelector(`.template-card[data-template-id="${id}"]`);
+        if (card) {
+            document.querySelectorAll(".template-card").forEach(c => c.style.borderColor = "transparent");
+            card.style.borderColor = "var(--accent, #6366f1)";
         }
-        if (t.feature_engineering?.length) {
-            html += `<div class="adv-section-label">Feature Engineering Steps</div>
-                <ul class="small text-muted">${t.feature_engineering.slice(0,6).map(f => `<li>${f}</li>`).join("")}</ul>`;
-        }
-        area.innerHTML = html;
     } catch(e) {
         area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
     }
 }
 
 async function templateApply() {
-    const id   = document.getElementById("templateSelect").value;
-    const area = document.getElementById("templateDetailsArea");
+    const id      = document.getElementById("templateSelect").value;
+    const wrapper = document.getElementById("templateApplyResultArea");
     if (!id) { showToast("Select a template first", "warning"); return; }
+    if (!wrapper) return;
 
-    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-success"></div><p class="mt-2 text-muted">Applying template…</p></div>';
+    wrapper.classList.remove("d-none");
+    const area = wrapper.querySelector(".card-body");
+    area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-success"></div><p class="mt-2 text-muted small">Applying template to your dataset…</p></div>';
 
     try {
-        const res = await API.post("/api/templates/apply", { template_id: id });
+        const res = await API.post("/api/templates/apply", { industry_id: id });
         if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
         const d = res.data;
-        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>Template Applied</div>
-            <div class="adv-kv-grid mb-3">
-                <div class="adv-kv"><span>Mapped Columns</span><span>${d.column_mapping ? Object.keys(d.column_mapping).length : "—"}</span></div>
-                <div class="adv-kv"><span>Inferred Task</span><span>${d.inferred_task ?? "—"}</span></div>
-            </div>`;
-        if (d.recommendations) {
-            html += `<div class="adv-section-label">Recommendations</div><div class="adv-llm-box">${renderMarkdown(typeof d.recommendations === "string" ? d.recommendations : JSON.stringify(d.recommendations, null, 2))}</div>`;
-        }
-        area.innerHTML = html;
-        showToast("Template applied successfully", "success");
+
+        // Coverage bar colour
+        const covPct = d.coverage_score_pct ?? 0;
+        const covCls = covPct >= 70 ? "bg-success" : covPct >= 40 ? "bg-warning" : "bg-danger";
+
+        // Matched features
+        const matchedHtml = Object.entries(d.matched_features || {}).map(([cat, cols]) =>
+            `<div class="mb-1"><span class="text-muted small text-capitalize me-2">${cat.replace(/_/g," ")}:</span>
+             ${cols.map(c => `<span class="badge bg-secondary me-1">${c}</span>`).join("")}</div>`
+        ).join("") || '<p class="text-muted small">No feature categories matched — consider uploading a domain-relevant dataset.</p>';
+
+        // FE steps
+        const feApplicable = (d.feature_engineering_steps || []).filter(s => s.applicable);
+        const feRows = (d.feature_engineering_steps || []).map(s => `
+            <tr class="${s.applicable ? "" : "opacity-50"}">
+                <td class="small">${s.step.replace(/_/g," ")}</td>
+                <td class="small text-muted">${s.description}</td>
+                <td>${_progressBar(s.completeness * 100)}</td>
+                <td>${s.applicable
+                    ? '<span class="badge bg-success">✓ Ready</span>'
+                    : '<span class="badge bg-secondary">Needs more columns</span>'}</td>
+            </tr>`).join("");
+
+        // Quality issues
+        const qHtml = (d.data_quality_checks || []).length
+            ? (d.data_quality_checks || []).map(q =>
+                `<div class="d-flex gap-2 mb-1 align-items-start">
+                    <span class="badge bg-${_severityBadge(q.severity)} mt-1" style="font-size:.6rem">${q.severity}</span>
+                    <span class="small">${q.message}</span>
+                 </div>`
+              ).join("")
+            : '<p class="text-success small mb-0"><i class="fas fa-check-circle me-1"></i>No quality issues found</p>';
+
+        area.innerHTML = `
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div>
+                    <h6 class="fw-bold mb-0 text-success"><i class="fas fa-check-circle me-2"></i>${d.template_name} — Applied</h6>
+                    <small class="text-muted">${d.dataset_rows?.toLocaleString() ?? "?"} rows × ${d.dataset_cols ?? "?"} columns</small>
+                </div>
+                <div class="ms-auto text-end">
+                    <small class="text-muted d-block">Column Coverage</small>
+                    ${_progressBar(covPct, covCls)}
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <div class="p-2 rounded text-center" style="background:rgba(255,255,255,.04)">
+                        <div class="h5 fw-bold text-info mb-0">${d.detected_target ?? '—'}</div>
+                        <small class="text-muted">Detected Target</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-2 rounded text-center" style="background:rgba(255,255,255,.04)">
+                        <div class="h5 fw-bold text-warning mb-0 text-capitalize">${d.inferred_task ?? '—'}</div>
+                        <small class="text-muted">Inferred Task</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-2 rounded text-center" style="background:rgba(255,255,255,.04)">
+                        <div class="h5 fw-bold text-success mb-0">${feApplicable.length}</div>
+                        <small class="text-muted">FE Steps Ready</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="adv-section-label">Recommended Models for <em>${d.inferred_task ?? "your task"}</em></div>
+            <div class="d-flex flex-wrap gap-1 mb-3">
+                ${(d.recommended_models || []).map(m => `<span class="badge bg-primary">${m}</span>`).join("") || '<span class="text-muted small">—</span>'}
+            </div>
+
+            <div class="adv-section-label">Matched Feature Categories</div>
+            <div class="mb-3">${matchedHtml}</div>
+
+            <div class="adv-section-label">Feature Engineering Steps</div>
+            <div class="table-responsive mb-3">
+                <table class="table table-sm table-dark mb-0">
+                    <thead><tr><th>Step</th><th>Description</th><th style="width:110px">Column Match</th><th>Status</th></tr></thead>
+                    <tbody>${feRows}</tbody>
+                </table>
+            </div>
+
+            <div class="adv-section-label">Data Quality Issues</div>
+            <div class="mb-0">${qHtml}</div>`;
+
+        showToast("Template applied — review the analysis below", "success");
     } catch(e) {
         area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
     }
@@ -4705,22 +4917,57 @@ async function templateApply() {
 
 async function templateRecommend() {
     const area = document.getElementById("templateRecommendResult");
-    area.innerHTML = '<div class="spinner-border spinner-border-sm text-success me-2"></div> Analyzing your data…';
+    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-success"></div><p class="mt-2 text-muted small">Analysing your dataset columns…</p></div>';
 
     try {
         const res = await API.post("/api/templates/recommend", {});
         if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger small">${res.message}</div>`; return; }
         const d = res.data;
-        area.innerHTML = `<div class="adv-kv-grid">
-            <div class="adv-kv"><span>Best Match</span><span class="text-success fw-bold">${d.recommended_template ?? d.template_id ?? "—"}</span></div>
-            <div class="adv-kv"><span>Industry</span><span>${d.industry ?? "—"}</span></div>
-            <div class="adv-kv"><span>Confidence</span><span>${d.confidence ? (d.confidence * 100).toFixed(0) + "%" : "—"}</span></div>
-        </div>
-        ${d.reason ? `<p class="small text-muted mt-2">${d.reason}</p>` : ""}`;
-        // Pre-select in dropdown
-        if (d.template_id) {
-            const sel = document.getElementById("templateSelect");
-            if (sel) sel.value = d.template_id;
+        const best = d.best_match;
+        const recs = d.recommendations || [];
+
+        // Best match banner
+        const bestHtml = best ? `
+            <div class="d-flex align-items-center gap-3 p-3 rounded mb-3" style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3)">
+                <span style="font-size:2rem">${best.icon || "🏆"}</span>
+                <div class="flex-fill">
+                    <div class="fw-bold">${best.name}</div>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        ${_progressBar(best.match_score_pct, "bg-success")}
+                        <small class="text-muted">${best.patterns_matched}/${best.total_patterns} patterns matched</small>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-info" id="btnAutoSelect">
+                    <i class="fas fa-check me-1"></i>Use This
+                </button>
+            </div>` : "";
+
+        // Full ranked list
+        const listHtml = recs.slice(0, 10).map((r, i) => `
+            <div class="d-flex align-items-center gap-2 mb-2 p-2 rounded" style="background:rgba(255,255,255,.04)">
+                <span class="text-muted small" style="width:18px">${i+1}</span>
+                <span>${r.icon || "📋"}</span>
+                <span class="small flex-fill">${r.name}</span>
+                <div style="width:90px">${_progressBar(r.match_score_pct, i === 0 ? "bg-success" : "bg-secondary")}</div>
+                <button class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.7rem"
+                    onclick="document.getElementById('templateSelect').value='${r.industry_id}';templateViewDetails()">View</button>
+            </div>`).join("");
+
+        area.innerHTML = `
+            <h6 class="fw-semibold mb-3"><i class="fas fa-lightbulb text-warning me-2"></i>Best Template for Your Data</h6>
+            ${bestHtml}
+            <div class="adv-section-label">All Rankings (${recs.length} templates, ${d.n_columns} columns analysed)</div>
+            ${listHtml}`;
+
+        // Wire up "Use This" button
+        const btn = document.getElementById("btnAutoSelect");
+        if (btn && best) {
+            btn.addEventListener("click", () => {
+                const sel = document.getElementById("templateSelect");
+                if (sel) sel.value = best.industry_id;
+                templateViewDetails();
+                showToast(`Template set to "${best.name}"`, "success");
+            });
         }
     } catch(e) {
         area.innerHTML = `<div class="text-danger small">Error: ${e.message}</div>`;

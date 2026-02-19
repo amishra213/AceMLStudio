@@ -1800,9 +1800,73 @@ body {
 #sec-anomaly   .col-12 > .card,
 #sec-nlp       .col-12 > .card,
 #sec-vision    .col-12 > .card,
-#sec-agents    .col-12 > .card,
 #sec-graph     .col-12 > .card,
 #sec-templates .col-12 > .card,
 #sec-monitoring .col-12 > .card {
     width: 100%;
 }
+
+/* ── Industry Template Cards ── */
+.template-card:hover {
+    border-color: var(--accent, #6366f1) !important;
+    background: rgba(99, 102, 241, 0.06);
+}
+.template-card .badge {
+    font-size: 0.65rem;
+}
+
+/* ── adv-section-label shared ── */
+.adv-section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+/* ── adv-result-header ── */
+.adv-result-header {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+}
+
+/* ── adv-kv-grid ── */
+.adv-kv-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+}
+.adv-kv {
+    display: flex;
+    flex-direction: column;
+}
+.adv-kv > span:first-child {
+    font-size: 0.68rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+.adv-kv > span:last-child {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* ── adv-llm-box ── */
+.adv-llm-box {
+    background: rgba(255,255,255,.04);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+/* progress bar inside tables */
+.progress { background: rgba(255,255,255,.08); }

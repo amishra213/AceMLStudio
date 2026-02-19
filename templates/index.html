@@ -2293,47 +2293,87 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="adv-module-banner">
-                                <i class="fas fa-layer-group me-2"></i><strong>Industry Templates</strong> — 10 pre-built ML templates: Retail, Finance, Healthcare, Manufacturing &amp; more
+                                <i class="fas fa-layer-group me-2"></i><strong>Industry Templates</strong> — 10 pre-built ML pipeline templates: Retail, Finance, Healthcare, Manufacturing, Marketing, HR, Real Estate, Energy, Logistics &amp; Insurance
                             </div>
                         </div>
                     </div>
-                    <div class="row g-3">
+
+                    <!-- ── Row 1: Auto-Recommend ──────────────────── -->
+                    <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="card glass-card">
-                                <div class="card-header"><i class="fas fa-magic me-2"></i>Select &amp; Apply Template</div>
+                                <div class="card-header d-flex align-items-center justify-content-between">
+                                    <span><i class="fas fa-magic me-2 text-warning"></i>Auto-Recommend Template for My Data</span>
+                                    <button class="btn btn-sm btn-warning" id="templateRecommendBtn">
+                                        <i class="fas fa-lightbulb me-1"></i>Analyse &amp; Recommend
+                                    </button>
+                                </div>
+                                <div class="card-body" id="templateRecommendResult">
+                                    <div class="text-center text-muted py-3">
+                                        <i class="fas fa-magic fa-3x mb-2 d-block opacity-25"></i>
+                                        <p class="mb-1">Upload a dataset, then click <strong>Analyse &amp; Recommend</strong></p>
+                                        <p class="small">AceML will match your column names against all 10 templates and rank the best fit</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Row 2: Browse &amp; Select ───────────────── -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-th me-2"></i>Browse Templates</div>
                                 <div class="card-body">
-                                    <div class="row g-3 align-items-end">
-                                        <div class="col-md-5">
-                                            <label class="form-label">Select Template</label>
+                                    <!-- dropdown (kept for programmatic selection) + action buttons -->
+                                    <div class="row g-2 align-items-end mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small text-muted mb-1">Selected Template</label>
                                             <select class="form-select form-select-sm" id="templateSelect">
-                                                <option value="">Loading templates...</option>
+                                                <option value="">Loading templates…</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-4 d-flex gap-2 align-items-end">
-                                            <button class="btn btn-outline-info btn-sm flex-fill" id="templateViewBtn"><i class="fas fa-eye me-1"></i>View Details</button>
-                                            <button class="btn btn-primary btn-sm flex-fill" id="templateApplyBtn"><i class="fas fa-check me-1"></i>Apply to My Data</button>
+                                        <div class="col-md-6 d-flex gap-2">
+                                            <button class="btn btn-outline-info btn-sm flex-fill" id="templateViewBtn">
+                                                <i class="fas fa-eye me-1"></i>View Details
+                                            </button>
+                                            <button class="btn btn-primary btn-sm flex-fill" id="templateApplyBtn">
+                                                <i class="fas fa-check me-1"></i>Apply to My Data
+                                            </button>
                                         </div>
-                                        <div class="col-md-3 d-flex align-items-end">
-                                            <button class="btn btn-success btn-sm w-100" id="templateRecommendBtn"><i class="fas fa-lightbulb me-1"></i>Auto-Recommend for My Data</button>
+                                    </div>
+                                    <!-- Visual card grid (populated by JS) -->
+                                    <div class="row g-2" id="templateCardGrid">
+                                        <div class="col-12 text-center text-muted py-3">
+                                            <div class="spinner-border spinner-border-sm me-2"></div>Loading templates…
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- ── Row 3: Template Details ───────────────── -->
+                    <div class="row g-3 mb-3">
                         <div class="col-12">
                             <div class="card glass-card">
                                 <div class="card-header"><i class="fas fa-info-circle me-2"></i>Template Details</div>
                                 <div class="card-body" id="templateDetailsArea">
-                                    <div class="text-center text-muted py-3"><i class="fas fa-layer-group fa-3x mb-2 d-block opacity-25"></i><p>Select a template to view its details</p></div>
+                                    <div class="text-center text-muted py-3">
+                                        <i class="fas fa-layer-group fa-3x mb-2 d-block opacity-25"></i>
+                                        <p>Click any template card above to see full details</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-12">
-                            <div class="card glass-card">
-                                <div class="card-header"><i class="fas fa-lightbulb me-2"></i>Recommendation Result</div>
-                                <div class="card-body" id="templateRecommendResult">
-                                    <div class="text-center text-muted py-3"><i class="fas fa-magic fa-3x mb-2 d-block opacity-25"></i><p>Click "Auto-Recommend" to analyse your dataset</p></div>
-                                </div>
+                    </div>
+
+                    <!-- ── Row 4: Apply Results ──────────────────── -->
+                    <div class="row g-3">
+                        <div class="col-12 d-none" id="templateApplyResultArea">
+                            <div class="card glass-card border-success">
+                                <div class="card-header text-success"><i class="fas fa-check-double me-2"></i>Apply Result — Column Coverage &amp; Recommendations</div>
+                                <div class="card-body"></div>
                             </div>
                         </div>
                     </div>
