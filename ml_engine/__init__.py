@@ -11,6 +11,13 @@ from .evaluation import ModelEvaluator
 from .tuning import HyperparameterTuner
 from .experiment_tracker import ExperimentTracker
 from .workflow_engine import WorkflowEngine
+from .time_series import TimeSeriesEngine
+from .anomaly_detection import AnomalyDetectionEngine
+from .nlp_engine import NLPEngine
+from .vision_engine import VisionEngine
+from .ai_agents import AgentOrchestrator
+from .knowledge_graph import KnowledgeGraphEngine
+from .industry_templates import IndustryTemplates
 
 __all__ = [
     "DataLoader",
@@ -24,4 +31,12 @@ __all__ = [
     "HyperparameterTuner",
     "ExperimentTracker",
     "WorkflowEngine",
+    "TimeSeriesEngine",
+    "AnomalyDetectionEngine",
+    "NLPEngine",
+    "VisionEngine",
+    # Phase 4
+    "AgentOrchestrator",
+    "KnowledgeGraphEngine",
+    "IndustryTemplates",
 ]

@@ -9,6 +9,7 @@ evaluate → tune → track experiments.  LLM-powered insights at every stage.
 import os
 import uuid
 import time
+import datetime
 import shutil
 import gc
 import traceback
@@ -38,6 +39,15 @@ from ml_engine.experiment_tracker import ExperimentTracker
 from ml_engine.visualizer import DataVisualizer
 from ml_engine.db_storage import DataFrameDBStorage
 from ml_engine.workflow_engine import WorkflowEngine
+from ml_engine.model_registry import ModelRegistry
+from ml_engine.model_deployment import ModelDeploymentService, PredictionLogger
+from ml_engine.time_series import TimeSeriesEngine
+from ml_engine.anomaly_detection import AnomalyDetectionEngine
+from ml_engine.nlp_engine import NLPEngine
+from ml_engine.vision_engine import VisionEngine
+from ml_engine.ai_agents import AgentOrchestrator
+from ml_engine.knowledge_graph import KnowledgeGraphEngine
+from ml_engine.industry_templates import IndustryTemplates
 from llm_engine.analyzer import LLMAnalyzer
 
 logger = get_logger("app")
@@ -83,6 +93,14 @@ os.makedirs(Config.EXPERIMENTS_DIR, exist_ok=True)
 
 # Initialize database storage for large files
 db_storage = DataFrameDBStorage(Config.DB_PATH) if Config.USE_DB_FOR_LARGE_FILES else None
+
+# Initialize model registry and deployment service
+model_registry = ModelRegistry(registry_path="models/registry")
+prediction_logger = PredictionLogger(log_db_path="models/predictions.db")
+deployment_service = ModelDeploymentService(model_registry, prediction_logger)
+
+# Initialize Phase 4: AI agents orchestrator
+agent_orchestrator = AgentOrchestrator(LLMAnalyzer)
 
 logger.info("Flask app initialised: %s v%s (debug=%s)",
             Config.APP_NAME, Config.APP_VERSION, Config.DEBUG)
@@ -1533,8 +1551,405 @@ def train_model():
 
 
 # ────────────────────────────────────────────────────────────────────
-#  Evaluation
+#  Model Registry & Versioning
 # ────────────────────────────────────────────────────────────────────
+@app.route("/api/models/register", methods=["POST"])
+def register_model():
+    """Register a trained model in the model registry."""
+    try:
+        store = _store()
+        models = store.get("models", {})
+        
+        if not models:
+            return _err("No trained models available to register", 404)
+        
+        body = request.get_json(silent=True) or {}
+        model_key = body.get("model_key")
+        model_name = body.get("name")
+        description = body.get("description", "")
+        
+        if not model_key or not model_name:
+            return _err("model_key and name are required")
+        
+        if model_key not in models:
+            return _err(f"Model '{model_key}' not found in session", 404)
+        
+        # Get model and metadata
+        model_data = models[model_key]
+        model = model_data.get("model") if isinstance(model_data, dict) else model_data
+        
+        if model is None:
+            return _err("Model object not found", 404)
+        
+        # Get evaluation metrics if available
+        eval_results = store.get("eval_results", {})
+        metrics = {}
+        if model_key in eval_results:
+            eval_metrics = eval_results[model_key].get("metrics", {})
+            metrics = eval_metrics
+        elif isinstance(model_data, dict):
+            # Use training metrics
+            if "train_score" in model_data:
+                metrics["train_score"] = model_data["train_score"]
+            if "val_score" in model_data:
+                metrics["val_score"] = model_data["val_score"]
+        
+        # Get hyperparameters (extract from model if possible)
+        hyperparameters = {}
+        if hasattr(model, 'get_params'):
+            try:
+                hyperparameters = model.get_params()
+            except:
+                pass
+        
+        # Prepare metadata
+        current_df = _df()
+        metadata = {
+            "feature_names": store.get("feature_names", []),
+            "target": store.get("target"),
+            "dataset_rows": len(current_df) if current_df is not None else 0,
+            "dataset_cols": len(current_df.columns) if current_df is not None else 0,
+            "training_timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        # Register model
+        task = store.get("task", "classification")
+        registration = model_registry.register_model(
+            name=model_name,
+            model=model,
+            model_type=model_key,
+            task=task,
+            metrics=metrics,
+            hyperparameters=hyperparameters,
+            metadata=metadata,
+            description=description
+        )
+        
+        logger.info("Model registered: %s (ID: %d, version: %s)", 
+                   model_name, registration["model_id"], registration["version"])
+        
+        return _ok({
+            "message": f"Model registered successfully as '{model_name}'",
+            "model_id": registration["model_id"],
+            "version": registration["version"],
+            "status": registration["status"]
+        })
+        
+    except Exception as e:
+        logger.error("Model registration failed: %s", e, exc_info=True)
+        return _err(f"Failed to register model: {str(e)}")
+
+
+@app.route("/api/models/list", methods=["GET"])
+def list_registered_models():
+    """List all registered models."""
+    try:
+        name = request.args.get("name")
+        status = request.args.get("status")
+        
+        models = model_registry.list_models(name=name, status=status)
+        
+        logger.info("Listed %d registered models (name=%s, status=%s)", 
+                   len(models), name, status)
+        
+        return _ok({
+            "models": models,
+            "count": len(models)
+        })
+        
+    except Exception as e:
+        logger.error("Failed to list models: %s", e, exc_info=True)
+        return _err(f"Failed to list models: {str(e)}")
+
+
+@app.route("/api/models/<int:model_id>", methods=["GET"])
+def get_model_details(model_id: int):
+    """Get detailed information about a specific model."""
+    try:
+        model_data = model_registry.load_model(model_id=model_id)
+        
+        # Get deployment history
+        history = model_registry.get_deployment_history(model_id)
+        
+        # Don't return the actual model object, just metadata
+        response = {
+            "model_id": model_data["model_id"],
+            "name": model_data["name"],
+            "version": model_data["version"],
+            "model_type": model_data["model_type"],
+            "task": model_data["task"],
+            "status": model_data["status"],
+            "metrics": model_data["metrics"],
+            "metadata": model_data["metadata"],
+            "description": model_data["description"],
+            "deployment_history": history
+        }
+        
+        return _ok(response)
+        
+    except Exception as e:
+        logger.error("Failed to get model details: %s", e, exc_info=True)
+        return _err(f"Failed to get model details: {str(e)}")
+
+
+@app.route("/api/models/<int:model_id>/promote", methods=["POST"])
+def promote_model(model_id: int):
+    """Promote a model to production or archive it."""
+    try:
+        body = request.get_json(silent=True) or {}
+        to_status = body.get("status")
+        notes = body.get("notes", "")
+        
+        if not to_status:
+            return _err("status is required (staging, production, archived)")
+        
+        model_registry.promote_model(model_id, to_status, notes)
+        
+        logger.info("Model %d promoted to %s", model_id, to_status)
+        
+        return _ok({
+            "message": f"Model promoted to {to_status}",
+            "model_id": model_id,
+            "status": to_status
+        })
+        
+    except Exception as e:
+        logger.error("Failed to promote model: %s", e, exc_info=True)
+        return _err(f"Failed to promote model: {str(e)}")
+
+
+@app.route("/api/models/<int:model_id>", methods=["DELETE"])
+def delete_registered_model(model_id: int):
+    """Delete a model from the registry."""
+    try:
+        model_registry.delete_model(model_id)
+        
+        logger.info("Model %d deleted", model_id)
+        
+        return _ok({"message": "Model deleted successfully"})
+        
+    except Exception as e:
+        logger.error("Failed to delete model: %s", e, exc_info=True)
+        return _err(f"Failed to delete model: {str(e)}")
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Model Deployment & Prediction API
+# ────────────────────────────────────────────────────────────────────
+@app.route("/api/deploy/model", methods=["POST"])
+def deploy_model():
+    """Deploy a model for serving predictions."""
+    try:
+        body = request.get_json(silent=True) or {}
+        model_name = body.get("name")
+        version = body.get("version")
+        
+        if not model_name:
+            return _err("model name is required")
+        
+        deployment = deployment_service.deploy_model(model_name, version)
+        
+        logger.info("Model deployed: %s v%s", model_name, deployment["version"])
+        
+        return _ok({
+            "message": f"Model {model_name} deployed successfully",
+            "deployment": deployment
+        })
+        
+    except Exception as e:
+        logger.error("Deployment failed: %s", e, exc_info=True)
+        return _err(f"Deployment failed: {str(e)}")
+
+
+@app.route("/api/deploy/models", methods=["GET"])
+def list_deployed_models():
+    """List all currently deployed models."""
+    try:
+        deployed = deployment_service.get_deployed_models()
+        
+        return _ok({
+            "deployed_models": deployed,
+            "count": len(deployed)
+        })
+        
+    except Exception as e:
+        logger.error("Failed to list deployed models: %s", e, exc_info=True)
+        return _err(f"Failed to list deployed models: {str(e)}")
+
+
+@app.route("/api/deploy/model/<model_name>", methods=["DELETE"])
+def undeploy_model(model_name: str):
+    """Undeploy a model."""
+    try:
+        version = request.args.get("version")
+        
+        success = deployment_service.undeploy_model(model_name, version)
+        
+        if success:
+            logger.info("Model undeployed: %s", model_name)
+            return _ok({"message": f"Model {model_name} undeployed successfully"})
+        else:
+            return _err(f"Model {model_name} not currently deployed", 404)
+        
+    except Exception as e:
+        logger.error("Undeploy failed: %s", e, exc_info=True)
+        return _err(f"Undeploy failed: {str(e)}")
+
+
+@app.route("/api/predict/<model_name>", methods=["POST"])
+def predict_endpoint(model_name: str):
+    """
+    Make a prediction using a deployed model.
+    
+    Request body should contain:
+    {
+        "input": {feature1: value1, feature2: value2, ...},
+        "version": "1.0.0" (optional)
+    }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        input_data = body.get("input")
+        version = body.get("version")
+        
+        if not input_data:
+            return _err("input data is required")
+        
+        # Generate request ID for tracking
+        import uuid
+        request_id = str(uuid.uuid4())
+        
+        result = deployment_service.predict(
+            model_name=model_name,
+            input_data=input_data,
+            version=version,
+            log_prediction=True,
+            request_id=request_id
+        )
+        
+        return _ok(result)
+        
+    except Exception as e:
+        logger.error("Prediction failed: %s", e, exc_info=True)
+        return _err(f"Prediction failed: {str(e)}")
+
+
+@app.route("/api/predict/batch/<model_name>", methods=["POST"])
+def batch_predict_endpoint(model_name: str):
+    """
+    Make batch predictions.
+    
+    Request body should contain:
+    {
+        "inputs": [{feature1: value1, ...}, {feature1: value2, ...}, ...],
+        "version": "1.0.0" (optional)
+    }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        inputs = body.get("inputs")
+        version = body.get("version")
+        
+        if not inputs or not isinstance(inputs, list):
+            return _err("inputs must be a list of feature dictionaries")
+        
+        results = deployment_service.batch_predict(
+            model_name=model_name,
+            input_data=inputs,
+            version=version
+        )
+        
+        return _ok({
+            "predictions": results,
+            "count": len(results)
+        })
+        
+    except Exception as e:
+        logger.error("Batch prediction failed: %s", e, exc_info=True)
+        return _err(f"Batch prediction failed: {str(e)}")
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Model Monitoring & Analytics
+# ────────────────────────────────────────────────────────────────────
+@app.route("/api/monitoring/predictions/<int:model_id>", methods=["GET"])
+def get_prediction_logs(model_id: int):
+    """Get recent prediction logs for a model."""
+    try:
+        limit = request.args.get("limit", 100, type=int)
+        
+        predictions = prediction_logger.get_recent_predictions(model_id, limit)
+        
+        return _ok({
+            "predictions": predictions,
+            "count": len(predictions)
+        })
+        
+    except Exception as e:
+        logger.error("Failed to get prediction logs: %s", e, exc_info=True)
+        return _err(f"Failed to get prediction logs: {str(e)}")
+
+
+@app.route("/api/monitoring/performance/<int:model_id>", methods=["GET"])
+def get_model_performance(model_id: int):
+    """Get performance statistics for a deployed model."""
+    try:
+        days = request.args.get("days", 7, type=int)
+        
+        stats = prediction_logger.get_performance_stats(model_id, days)
+        
+        return _ok({
+            "model_id": model_id,
+            "performance": stats
+        })
+        
+    except Exception as e:
+        logger.error("Failed to get performance stats: %s", e, exc_info=True)
+        return _err(f"Failed to get performance stats: {str(e)}")
+
+
+@app.route("/api/monitoring/dashboard", methods=["GET"])
+def monitoring_dashboard():
+    """Get monitoring dashboard data for all deployed models."""
+    try:
+        deployed = deployment_service.get_deployed_models()
+        
+        dashboard_data = []
+        for deployment in deployed:
+            # Get model details from registry
+            try:
+                models = model_registry.list_models(name=deployment["model_name"])
+                model_info = next((m for m in models if m["version"] == deployment["version"]), None)
+                
+                if model_info:
+                    # Get performance stats
+                    stats = prediction_logger.get_performance_stats(model_info["id"], days=7)
+                    
+                    dashboard_data.append({
+                        "model_name": deployment["model_name"],
+                        "version": deployment["version"],
+                        "model_type": deployment["model_type"],
+                        "task": deployment["task"],
+                        "status": model_info["status"],
+                        "deployed_at": deployment["deployed_at"],
+                        "performance": stats,
+                        "metrics": model_info["metrics"]
+                    })
+            except Exception as e:
+                logger.warning("Failed to get stats for %s: %s", deployment["model_name"], e)
+                continue
+        
+        return _ok({
+            "dashboard": dashboard_data,
+            "total_deployed": len(deployed)
+        })
+        
+    except Exception as e:
+        logger.error("Failed to get dashboard data: %s", e, exc_info=True)
+        return _err(f"Failed to get dashboard data: {str(e)}")
+
+
+
 @app.route("/api/model/evaluate", methods=["POST"])
 def evaluate_model():
     store = _store()
@@ -3049,6 +3464,1036 @@ def reset_settings():
     except Exception as e:
         logger.error("Failed to reset settings: %s", e, exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════════════════
+#  TIME SERIES ENDPOINTS
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/timeseries/detect-datetime", methods=["POST"])
+def ts_detect_datetime():
+    """Auto-detect datetime columns in the current dataset."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        candidates = TimeSeriesEngine.detect_datetime_columns(current_df)
+        return _ok(candidates)
+    except Exception as e:
+        logger.error("TS datetime detection failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/prepare", methods=["POST"])
+def ts_prepare():
+    """Prepare time series from dataset."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        datetime_col = body.get("datetime_col")
+        value_col = body.get("value_col")
+        if not datetime_col or not value_col:
+            return _err("datetime_col and value_col are required")
+        freq = body.get("freq")
+        fill_method = body.get("fill_method", "ffill")
+        ts_df = TimeSeriesEngine.prepare_time_series(
+            current_df, datetime_col, value_col, freq=freq, fill_method=fill_method
+        )
+        summary = TimeSeriesEngine.ts_summary(ts_df[value_col])
+        return _ok({
+            "rows": len(ts_df),
+            "summary": summary,
+            "frequency": str(getattr(ts_df.index, "freqstr", "unknown")),
+        })
+    except Exception as e:
+        logger.error("TS prepare failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/stationarity", methods=["POST"])
+def ts_stationarity():
+    """Run stationarity tests on a time series."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        datetime_col = body.get("datetime_col")
+        value_col = body.get("value_col")
+        if not datetime_col or not value_col:
+            return _err("datetime_col and value_col are required")
+        ts_df = TimeSeriesEngine.prepare_time_series(current_df, datetime_col, value_col)
+        result = TimeSeriesEngine.stationarity_test(ts_df[value_col])
+        return _ok(result)
+    except Exception as e:
+        logger.error("TS stationarity test failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/decompose", methods=["POST"])
+def ts_decompose():
+    """Decompose time series into trend, seasonal, residual."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        datetime_col = body.get("datetime_col")
+        value_col = body.get("value_col")
+        if not datetime_col or not value_col:
+            return _err("datetime_col and value_col are required")
+        model = body.get("model", "additive")
+        period = body.get("period")
+        ts_df = TimeSeriesEngine.prepare_time_series(current_df, datetime_col, value_col)
+        result = TimeSeriesEngine.decompose(ts_df[value_col], model=model, period=period)
+        return _ok(result)
+    except Exception as e:
+        logger.error("TS decomposition failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/autocorrelation", methods=["POST"])
+def ts_autocorrelation():
+    """Compute ACF and PACF."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        datetime_col = body.get("datetime_col")
+        value_col = body.get("value_col")
+        if not datetime_col or not value_col:
+            return _err("datetime_col and value_col are required")
+        nlags = body.get("nlags", 40)
+        ts_df = TimeSeriesEngine.prepare_time_series(current_df, datetime_col, value_col)
+        result = TimeSeriesEngine.autocorrelation(ts_df[value_col], nlags=nlags)
+        return _ok(result)
+    except Exception as e:
+        logger.error("TS autocorrelation failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/forecast", methods=["POST"])
+def ts_forecast():
+    """Run a specific forecast model."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        datetime_col = body.get("datetime_col")
+        value_col = body.get("value_col")
+        if not datetime_col or not value_col:
+            return _err("datetime_col and value_col are required")
+        model_type = body.get("model", "arima")
+        forecast_steps = body.get("forecast_steps", 30)
+        ts_df = TimeSeriesEngine.prepare_time_series(
+            current_df, datetime_col, value_col, freq=body.get("freq")
+        )
+        series = ts_df[value_col]
+
+        if model_type == "arima":
+            order = tuple(body.get("order", [1, 1, 1]))
+            seasonal_order = body.get("seasonal_order")
+            if seasonal_order:
+                seasonal_order = tuple(seasonal_order)
+            result = TimeSeriesEngine.fit_arima(
+                series, order=order, seasonal_order=seasonal_order,
+                forecast_steps=forecast_steps,
+            )
+        elif model_type == "exponential_smoothing":
+            result = TimeSeriesEngine.fit_exponential_smoothing(
+                series, forecast_steps=forecast_steps,
+                trend=body.get("trend", "add"),
+                seasonal=body.get("seasonal", "add"),
+                seasonal_periods=body.get("seasonal_periods"),
+            )
+        elif model_type == "prophet":
+            result = TimeSeriesEngine.fit_prophet(
+                series, forecast_steps=forecast_steps,
+            )
+        elif model_type.startswith("ml_"):
+            ml_type = model_type.replace("ml_", "")
+            result = TimeSeriesEngine.fit_ml_forecast(
+                series, forecast_steps=forecast_steps, model_type=ml_type,
+            )
+        else:
+            return _err(f"Unknown model: {model_type}")
+
+        return _ok(result)
+    except Exception as e:
+        logger.error("TS forecast failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/auto-forecast", methods=["POST"])
+def ts_auto_forecast():
+    """Run multiple forecast models and compare."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        datetime_col = body.get("datetime_col")
+        value_col = body.get("value_col")
+        if not datetime_col or not value_col:
+            return _err("datetime_col and value_col are required")
+        forecast_steps = body.get("forecast_steps", 30)
+        models = body.get("models")
+        result = TimeSeriesEngine.auto_forecast(
+            current_df, datetime_col, value_col,
+            forecast_steps=forecast_steps, models=models,
+            freq=body.get("freq"),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("TS auto-forecast failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/timeseries/models", methods=["GET"])
+def ts_available_models():
+    """List available time series models."""
+    return _ok(TimeSeriesEngine.get_available_models())
+
+
+# ════════════════════════════════════════════════════════════════════
+#  ANOMALY DETECTION ENDPOINTS
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/anomaly/detect", methods=["POST"])
+def anomaly_detect():
+    """Run a specific anomaly detection method."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        method = body.get("method", "isolation_forest")
+        columns = body.get("columns")
+        contamination = body.get("contamination", 0.05)
+
+        if method == "zscore":
+            result = AnomalyDetectionEngine.zscore_detection(
+                current_df, columns=columns, threshold=body.get("threshold", 3.0),
+            )
+        elif method == "modified_zscore":
+            result = AnomalyDetectionEngine.modified_zscore_detection(
+                current_df, columns=columns, threshold=body.get("threshold", 3.5),
+            )
+        elif method == "iqr":
+            result = AnomalyDetectionEngine.iqr_detection(
+                current_df, columns=columns, multiplier=body.get("multiplier", 1.5),
+            )
+        elif method == "isolation_forest":
+            result = AnomalyDetectionEngine.isolation_forest_detection(
+                current_df, columns=columns, contamination=contamination,
+                n_estimators=body.get("n_estimators", 100),
+            )
+        elif method == "one_class_svm":
+            result = AnomalyDetectionEngine.one_class_svm_detection(
+                current_df, columns=columns, nu=contamination,
+                kernel=body.get("kernel", "rbf"),
+            )
+        elif method == "lof":
+            result = AnomalyDetectionEngine.lof_detection(
+                current_df, columns=columns, contamination=contamination,
+                n_neighbors=body.get("n_neighbors", 20),
+            )
+        elif method == "dbscan":
+            result = AnomalyDetectionEngine.dbscan_detection(
+                current_df, columns=columns,
+                eps=body.get("eps", 0.5), min_samples=body.get("min_samples", 5),
+            )
+        elif method == "autoencoder":
+            result = AnomalyDetectionEngine.autoencoder_detection(
+                current_df, columns=columns, contamination=contamination,
+            )
+        else:
+            return _err(f"Unknown anomaly detection method: {method}")
+
+        return _ok(result)
+    except Exception as e:
+        logger.error("Anomaly detection failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/anomaly/detect-all", methods=["POST"])
+def anomaly_detect_all():
+    """Run multiple anomaly detection methods and compare with consensus."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        columns = body.get("columns")
+        contamination = body.get("contamination", 0.05)
+        methods = body.get("methods")
+        result = AnomalyDetectionEngine.detect_all(
+            current_df, columns=columns,
+            contamination=contamination, methods=methods,
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("Anomaly detect-all failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/anomaly/methods", methods=["GET"])
+def anomaly_available_methods():
+    """List available anomaly detection methods."""
+    return _ok(AnomalyDetectionEngine.get_available_methods())
+
+
+# ════════════════════════════════════════════════════════════════════
+#  NLP ENDPOINTS
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/nlp/detect-text-columns", methods=["POST"])
+def nlp_detect_text_columns():
+    """Auto-detect text columns in the current dataset."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        candidates = NLPEngine.detect_text_columns(current_df)
+        return _ok(candidates)
+    except Exception as e:
+        logger.error("NLP text column detection failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/preprocess", methods=["POST"])
+def nlp_preprocess():
+    """Preprocess text in a column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.preprocess_text(
+            current_df[column],
+            lowercase=body.get("lowercase", True),
+            remove_urls=body.get("remove_urls", True),
+            remove_html=body.get("remove_html", True),
+            remove_numbers=body.get("remove_numbers", False),
+            remove_punctuation=body.get("remove_punctuation", True),
+            remove_stopwords=body.get("remove_stopwords", True),
+            stemming=body.get("stemming", False),
+            lemmatization=body.get("lemmatization", True),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP preprocess failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/sentiment", methods=["POST"])
+def nlp_sentiment():
+    """Analyse sentiment of a text column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        method = body.get("method", "vader")
+        result = NLPEngine.sentiment_analysis(current_df[column], method=method)
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP sentiment failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/classify", methods=["POST"])
+def nlp_classify():
+    """Train a text classifier."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        text_column = body.get("text_column")
+        label_column = body.get("label_column")
+        if not text_column or not label_column:
+            return _err("text_column and label_column are required")
+        if text_column not in current_df.columns or label_column not in current_df.columns:
+            return _err("Columns not found in dataset")
+        model_type = body.get("model_type", "logistic_regression")
+        result = NLPEngine.train_text_classifier(
+            current_df[text_column], current_df[label_column],
+            model_type=model_type,
+            max_features=body.get("max_features", 10000),
+            test_size=body.get("test_size", 0.2),
+        )
+        # Remove non-serializable pipeline from response
+        result_copy = {k: v for k, v in result.items() if k != "pipeline"}
+        # Store pipeline in session for predictions
+        store = _store()
+        store["nlp_classifier"] = result.get("pipeline")
+        return _ok(result_copy)
+    except Exception as e:
+        logger.error("NLP classify failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/topics", methods=["POST"])
+def nlp_topics():
+    """Discover topics in a text column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.topic_modeling(
+            current_df[column],
+            n_topics=body.get("n_topics", 10),
+            method=body.get("method", "lda"),
+            n_top_words=body.get("n_top_words", 15),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP topics failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/keywords", methods=["POST"])
+def nlp_keywords():
+    """Extract keywords from a text column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.extract_keywords(
+            current_df[column],
+            method=body.get("method", "tfidf"),
+            top_k=body.get("top_k", 30),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP keywords failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/ner", methods=["POST"])
+def nlp_ner():
+    """Extract named entities from a text column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.named_entity_recognition(
+            current_df[column], max_texts=body.get("max_texts", 200),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP NER failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/similarity", methods=["POST"])
+def nlp_similarity():
+    """Compute text similarity matrix."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.text_similarity(
+            current_df[column], max_texts=body.get("max_texts", 200),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP similarity failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/wordcloud", methods=["POST"])
+def nlp_wordcloud():
+    """Generate word cloud data for a text column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.word_cloud_data(
+            current_df[column], top_k=body.get("top_k", 100),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP wordcloud failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/stats", methods=["POST"])
+def nlp_stats():
+    """Get text statistics for a column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.text_statistics(current_df[column])
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP stats failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/vectorize", methods=["POST"])
+def nlp_vectorize():
+    """Vectorize a text column."""
+    try:
+        current_df = _df()
+        if current_df is None:
+            return _err("No dataset loaded")
+        body = request.get_json(silent=True) or {}
+        column = body.get("column")
+        if not column or column not in current_df.columns:
+            return _err("Valid 'column' is required")
+        result = NLPEngine.vectorize_text(
+            current_df[column],
+            method=body.get("method", "tfidf"),
+            max_features=body.get("max_features", 5000),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.error("NLP vectorize failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/nlp/features", methods=["GET"])
+def nlp_available_features():
+    """List available NLP features."""
+    return _ok(NLPEngine.get_available_features())
+
+
+# ════════════════════════════════════════════════════════════════════
+#  COMPUTER VISION ENDPOINTS
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/vision/load", methods=["POST"])
+def vision_load():
+    """Load and analyse an image from upload or base64."""
+    try:
+        if "image" in request.files:
+            img_file = request.files["image"]
+            img_bytes = img_file.read()
+            result = VisionEngine.load_image(img_bytes)
+        elif request.is_json:
+            body = request.get_json(silent=True) or {}
+            source = body.get("source", "")
+            result = VisionEngine.load_image(source)
+        else:
+            return _err("Provide an image file or base64 source")
+
+        if "error" in result:
+            return _err(result["error"])
+
+        # Store image in session
+        store = _store()
+        store["vision_image"] = result.get("array")
+
+        # Don't return the full array in JSON
+        result_safe = {k: v for k, v in result.items() if k != "array"}
+        if "shape" not in result_safe and "array" in result:
+            result_safe["shape"] = list(result["array"].shape)
+        return _ok(result_safe)
+    except Exception as e:
+        logger.error("Vision load failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/features", methods=["POST"])
+def vision_features():
+    """Extract features from the loaded image."""
+    try:
+        store = _store()
+        img = store.get("vision_image")
+        if img is None:
+            return _err("No image loaded — upload one first via /api/vision/load")
+        body = request.get_json(silent=True) or {}
+        methods = body.get("methods")
+        result = VisionEngine.extract_features(img, methods=methods)
+        return _ok(result)
+    except Exception as e:
+        logger.error("Vision feature extraction failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/stats", methods=["POST"])
+def vision_stats():
+    """Get statistics for the loaded image."""
+    try:
+        store = _store()
+        img = store.get("vision_image")
+        if img is None:
+            return _err("No image loaded")
+        result = VisionEngine.image_statistics(img)
+        return _ok(result)
+    except Exception as e:
+        logger.error("Vision stats failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/preprocess", methods=["POST"])
+def vision_preprocess():
+    """Apply preprocessing to the loaded image."""
+    try:
+        store = _store()
+        img = store.get("vision_image")
+        if img is None:
+            return _err("No image loaded")
+        body = request.get_json(silent=True) or {}
+        result = VisionEngine.preprocess_image(
+            img,
+            normalize=body.get("normalize", True),
+            grayscale=body.get("grayscale", False),
+            equalize_histogram=body.get("equalize_histogram", False),
+            denoise=body.get("denoise", False),
+        )
+        # Store processed image back
+        store["vision_image"] = result.get("processed_array")
+        result_safe = {k: v for k, v in result.items() if k != "processed_array"}
+        return _ok(result_safe)
+    except Exception as e:
+        logger.error("Vision preprocess failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/augment", methods=["POST"])
+def vision_augment():
+    """Augment the loaded image."""
+    try:
+        store = _store()
+        img = store.get("vision_image")
+        if img is None:
+            return _err("No image loaded")
+        body = request.get_json(silent=True) or {}
+        operations = body.get("operations")
+        result = VisionEngine.augment_image(img, operations=operations)
+        result_safe = {
+            "original_shape": result["original_shape"],
+            "operations_applied": result["operations_applied"],
+            "n_augmented": result["n_augmented"],
+        }
+        return _ok(result_safe)
+    except Exception as e:
+        logger.error("Vision augment failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/classify", methods=["POST"])
+def vision_classify():
+    """Classify the loaded image using a pre-trained deep model."""
+    try:
+        store = _store()
+        img = store.get("vision_image")
+        if img is None:
+            return _err("No image loaded")
+        body = request.get_json(silent=True) or {}
+        model_name = body.get("model", "resnet18")
+        top_k = body.get("top_k", 5)
+        result = VisionEngine.deep_classify(img, model_name=model_name, top_k=top_k)
+        if "error" in result:
+            return _err(result["error"])
+        return _ok(result)
+    except Exception as e:
+        logger.error("Vision classify failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/deep-features", methods=["POST"])
+def vision_deep_features():
+    """Extract deep learning features from the loaded image."""
+    try:
+        store = _store()
+        img = store.get("vision_image")
+        if img is None:
+            return _err("No image loaded")
+        body = request.get_json(silent=True) or {}
+        model_name = body.get("model", "resnet18")
+        layer = body.get("layer", "avgpool")
+        result = VisionEngine.deep_extract_features(
+            img, model_name=model_name, layer=layer,
+        )
+        if "error" in result:
+            return _err(result["error"])
+        return _ok(result)
+    except Exception as e:
+        logger.error("Vision deep features failed: %s", e, exc_info=True)
+        return _err(str(e), 500)
+
+
+@app.route("/api/vision/available", methods=["GET"])
+def vision_available_features():
+    """List available vision features."""
+    return _ok(VisionEngine.get_available_features())
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Phase 4: AI Agents
+# ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/agents/types", methods=["GET"])
+def agents_types():
+    """List available agent types."""
+    try:
+        return _ok({"agent_types": agent_orchestrator.available_agent_types()})
+    except Exception as exc:
+        logger.exception("agents_types error")
+        return _err(str(exc))
+
+
+@app.route("/api/agents/run", methods=["POST"])
+def agents_run():
+    """
+    Create and immediately run an agent session.
+
+    Body (JSON):
+      agent_type: str          – e.g. "data_analyst", "automl"
+      target:     str|null     – target column name (optional)
+      task:       str|null     – free-text task description (optional)
+      options:    dict|null    – extra agent options
+    """
+    try:
+        sid = _sid()
+        df = _df(sid)
+        if df is None:
+            return _err("No dataset loaded. Upload a file first.")
+
+        body = request.get_json(force=True) or {}
+        agent_type = body.get("agent_type", "data_analyst")
+        target = body.get("target") or _store(sid).get("target")
+        task = body.get("task", "Analyse the dataset and provide insights.")
+        options = body.get("options") or {}
+
+        context: dict = {
+            "task": task,
+            "target": target,
+            **options,
+        }
+
+        session_obj = agent_orchestrator.create_session(
+            agent_type=agent_type,
+            context=context,
+        )
+        result_session = agent_orchestrator.run_sync(session_obj.session_id, df)
+        return _ok(result_session.to_dict())
+    except Exception as exc:
+        logger.exception("agents_run error")
+        return _err(str(exc))
+
+
+@app.route("/api/agents/status/<session_id>", methods=["GET"])
+def agents_status(session_id: str):
+    """Poll the status of an agent session."""
+    try:
+        info = agent_orchestrator.get_session(session_id)
+        if info is None:
+            return _err(f"Session '{session_id}' not found.", code=404)
+        return _ok(info.to_dict())
+    except Exception as exc:
+        logger.exception("agents_status error")
+        return _err(str(exc))
+
+
+@app.route("/api/agents/stop/<session_id>", methods=["POST"])
+def agents_stop(session_id: str):
+    """Stop a running agent session."""
+    try:
+        agent_orchestrator.stop_session(session_id)
+        return _ok({"message": f"Session '{session_id}' stop requested."})
+    except Exception as exc:
+        logger.exception("agents_stop error")
+        return _err(str(exc))
+
+
+@app.route("/api/agents/sessions", methods=["GET"])
+def agents_sessions():
+    """List all active/completed agent sessions."""
+    try:
+        return _ok({"sessions": agent_orchestrator.list_sessions()})
+    except Exception as exc:
+        logger.exception("agents_sessions error")
+        return _err(str(exc))
+
+
+@app.route("/api/agents/clear", methods=["POST"])
+def agents_clear():
+    """Clear completed agent sessions."""
+    try:
+        removed = agent_orchestrator.clear_completed()
+        return _ok({"removed": removed})
+    except Exception as exc:
+        logger.exception("agents_clear error")
+        return _err(str(exc))
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Phase 4: Knowledge Graph
+# ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/graph/schema", methods=["POST"])
+def graph_schema():
+    """
+    Build a schema graph (column-to-column relationships).
+
+    Body (JSON, all optional):
+      correlation_threshold: float  – default 0.3
+      include_categorical:   bool   – default true
+    """
+    try:
+        sid = _sid()
+        df = _df(sid)
+        if df is None:
+            return _err("No dataset loaded.")
+        body = request.get_json(force=True) or {}
+        threshold = float(body.get("correlation_threshold", 0.3))
+        inc_cat = bool(body.get("include_categorical", True))
+        result = KnowledgeGraphEngine.build_schema_graph(
+            df,
+            correlation_threshold=threshold,
+            include_categorical=inc_cat,
+        )
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("graph_schema error")
+        return _err(str(exc))
+
+
+@app.route("/api/graph/entity", methods=["POST"])
+def graph_entity():
+    """
+    Build an entity graph (value co-occurrence across rows).
+
+    Body (JSON):
+      key_columns:          list[str]  – columns to use as entities
+      max_unique_per_col:   int        – default 100
+      min_cooccurrences:    int        – default 2
+    """
+    try:
+        sid = _sid()
+        df = _df(sid)
+        if df is None:
+            return _err("No dataset loaded.")
+        body = request.get_json(force=True) or {}
+        key_cols = body.get("key_columns")
+        if not key_cols:
+            # Default: low-cardinality categorical columns
+            key_cols = [
+                c for c in df.columns
+                if df[c].dtype == object and df[c].nunique() <= 50
+            ][:5]
+        max_unique = int(body.get("max_unique_per_col", 100))
+        min_cooc = int(body.get("min_cooccurrences", 2))
+        result = KnowledgeGraphEngine.build_entity_graph(
+            df,
+            key_columns=key_cols,
+            max_unique_per_col=max_unique,
+            min_cooccurrences=min_cooc,
+        )
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("graph_entity error")
+        return _err(str(exc))
+
+
+@app.route("/api/graph/metrics", methods=["POST"])
+def graph_metrics():
+    """
+    Compute graph metrics for a previously built graph.
+
+    Body (JSON):
+      graph_data: dict  – the graph dict returned by /schema or /entity
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        graph_data = body.get("graph_data")
+        if not graph_data:
+            return _err("'graph_data' is required.")
+        result = KnowledgeGraphEngine.compute_graph_metrics(graph_data)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("graph_metrics error")
+        return _err(str(exc))
+
+
+@app.route("/api/graph/communities", methods=["POST"])
+def graph_communities():
+    """
+    Detect communities in a graph.
+
+    Body (JSON):
+      graph_data: dict  – graph dict from /schema or /entity
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        graph_data = body.get("graph_data")
+        if not graph_data:
+            return _err("'graph_data' is required.")
+        result = KnowledgeGraphEngine.detect_communities(graph_data)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("graph_communities error")
+        return _err(str(exc))
+
+
+@app.route("/api/graph/neighbors", methods=["POST"])
+def graph_neighbors():
+    """
+    Get neighbors of a node up to a given depth.
+
+    Body (JSON):
+      graph_data: dict  – graph dict
+      node_id:    str   – node identifier
+      depth:      int   – default 1
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        graph_data = body.get("graph_data")
+        node_id = body.get("node_id")
+        depth = int(body.get("depth", 1))
+        if not graph_data or not node_id:
+            return _err("'graph_data' and 'node_id' are required.")
+        result = KnowledgeGraphEngine.node_neighbors(graph_data, node_id, depth=depth)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("graph_neighbors error")
+        return _err(str(exc))
+
+
+@app.route("/api/graph/export", methods=["POST"])
+def graph_export():
+    """
+    Export a graph in a specific format.
+
+    Body (JSON):
+      graph_data: dict  – graph dict
+      format:     str   – "node_link" | "cytoscape" | "adjacency_matrix"
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        graph_data = body.get("graph_data")
+        fmt = body.get("format", "node_link")
+        if not graph_data:
+            return _err("'graph_data' is required.")
+        result = KnowledgeGraphEngine.export_graph(graph_data, fmt=fmt)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("graph_export error")
+        return _err(str(exc))
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Phase 4: Industry Templates
+# ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/templates/list", methods=["GET"])
+def templates_list():
+    """List all available industry templates."""
+    try:
+        return _ok({"templates": IndustryTemplates.list_templates()})
+    except Exception as exc:
+        logger.exception("templates_list error")
+        return _err(str(exc))
+
+
+@app.route("/api/templates/industries", methods=["GET"])
+def templates_industries():
+    """List all available industry IDs."""
+    try:
+        return _ok({"industries": IndustryTemplates.list_industries()})
+    except Exception as exc:
+        logger.exception("templates_industries error")
+        return _err(str(exc))
+
+
+@app.route("/api/templates/get/<industry_id>", methods=["GET"])
+def templates_get(industry_id: str):
+    """Return full details for a specific industry template."""
+    try:
+        result = IndustryTemplates.get_template(industry_id)
+        if "error" in result:
+            return _err(result["error"], code=404)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("templates_get error")
+        return _err(str(exc))
+
+
+@app.route("/api/templates/apply", methods=["POST"])
+def templates_apply():
+    """
+    Apply an industry template to the current dataset.
+
+    Body (JSON):
+      industry_id: str       – template ID
+      target_col:  str|null  – optional target column hint
+    """
+    try:
+        sid = _sid()
+        df = _df(sid)
+        if df is None:
+            return _err("No dataset loaded.")
+        body = request.get_json(force=True) or {}
+        industry_id = body.get("industry_id")
+        if not industry_id:
+            return _err("'industry_id' is required.")
+        target_col = body.get("target_col") or _store(sid).get("target")
+        result = IndustryTemplates.apply_template(df, industry_id, target_col=target_col)
+        if "error" in result:
+            return _err(result["error"], code=400)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("templates_apply error")
+        return _err(str(exc))
+
+
+@app.route("/api/templates/recommend", methods=["POST"])
+def templates_recommend():
+    """
+    Auto-detect the most suitable industry template for the current dataset.
+
+    Body: empty (uses current session dataset).
+    """
+    try:
+        sid = _sid()
+        df = _df(sid)
+        if df is None:
+            return _err("No dataset loaded.")
+        result = IndustryTemplates.recommend_industry(df)
+        return _ok(result)
+    except Exception as exc:
+        logger.exception("templates_recommend error")
+        return _err(str(exc))
 
 
 # ────────────────────────────────────────────────────────────────────

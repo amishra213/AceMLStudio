@@ -32,3 +32,22 @@ pyarrow>=14.0.0
 
 # Utilities
 joblib>=1.3.0
+
+# Time Series
+statsmodels>=0.14.0
+
+# NLP
+nltk>=3.8.0
+textblob>=0.17.0
+
+# Computer Vision
+Pillow>=10.0.0
+
+# ── Optional (uncomment as needed) ──────────────────────────────────
+# prophet>=1.1.0           # Facebook Prophet for time series
+# spacy>=3.7.0             # Advanced NLP (NER, etc.)
+# scikit-image>=0.21.0     # Advanced image processing
+# torch>=2.0.0             # PyTorch deep learning
+# torchvision>=0.15.0      # Pre-trained vision models
+# tensorflow>=2.14.0       # TensorFlow backend (alternative to PyTorch)
+# networkx>=3.0.0          # Phase 4: Knowledge graph community detection & metrics
