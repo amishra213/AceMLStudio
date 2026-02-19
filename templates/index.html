@@ -26,25 +26,29 @@
                 <span class="brand-text">AceML Studio</span>
             </div>
             <div class="sidebar-nav">
-                <a class="nav-item active" data-section="dashboard" href="#" title="Overview of your ML project with quick stats and pipeline workflow">
+                <!-- ── START ── -->
+                <a class="nav-item active" data-section="dashboard" href="#" title="Overview of your ML project with quick stats and pipeline status">
                     <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
                 </a>
-                <div class="nav-group-label">DATA PIPELINE</div>
+                <a class="nav-item" data-section="templates" href="#" title="10 pre-built ML templates for Retail, Finance, Healthcare and more — great starting point">
+                    <i class="fas fa-layer-group"></i><span>Industry Templates</span>
+                </a>
+
+                <!-- ── STEP 1: DATA PREPARATION ── -->
+                <div class="nav-group-label">① DATA PREPARATION</div>
                 <a class="nav-item" data-section="upload" href="#" title="Upload and configure your dataset">
                     <i class="fas fa-cloud-upload-alt"></i><span>Upload Data</span>
                 </a>
-                <a class="nav-item nav-item-primary" data-section="workflow" href="#" title="LLM-driven iterative workflow: auto-analyze, clean, transform, and prepare data for training">
-                    <i class="fas fa-project-diagram"></i><span>AI Workflow</span>
-                    <span class="badge bg-info ms-auto" style="font-size:0.55rem; padding:2px 5px;">RECOMMENDED</span>
-                </a>
-                <div class="nav-group-label">MANUAL TOOLS <small class="text-muted ms-1" style="font-size:0.55rem; letter-spacing:0">(override / enhance)</small></div>
                 <a class="nav-item nav-item-sub" data-section="quality" href="#" title="Analyze data quality, find missing values and outliers">
                     <i class="fas fa-search-plus"></i><span>Data Quality</span>
                 </a>
                 <a class="nav-item nav-item-sub" data-section="cleaning" href="#" title="Clean your data: handle missing values, duplicates, and outliers">
                     <i class="fas fa-broom"></i><span>Data Cleaning</span>
                 </a>
-                <a class="nav-item nav-item-sub" data-section="features" href="#" title="Create new features from existing data to improve predictions">
+
+                <!-- ── STEP 2: FEATURE ENGINEERING ── -->
+                <div class="nav-group-label">② FEATURE ENGINEERING</div>
+                <a class="nav-item" data-section="features" href="#" title="Create new features from existing data to improve predictions">
                     <i class="fas fa-cogs"></i><span>Feature Engineering</span>
                 </a>
                 <a class="nav-item nav-item-sub" data-section="transform" href="#" title="Scale numbers and encode categories for ML algorithms">
@@ -53,29 +57,66 @@
                 <a class="nav-item nav-item-sub" data-section="dimensions" href="#" title="Reduce number of features while keeping important information">
                     <i class="fas fa-compress-arrows-alt"></i><span>Reduce Dimensions</span>
                 </a>
-                <div class="nav-group-label">MODELING</div>
-                <a class="nav-item nav-item-primary" data-section="training" href="#" title="Train machine learning models on your data">
+
+                <!-- ── STEP 3: AI AUTOMATION (fast track) ── -->
+                <div class="nav-group-label">③ AI AUTOMATION</div>
+                <a class="nav-item nav-item-primary" data-section="workflow" href="#" title="LLM-driven iterative workflow: auto-analyze, clean, transform, and prepare data for training">
+                    <i class="fas fa-magic"></i><span>AI Workflow</span>
+                    <span class="badge bg-info ms-auto" style="font-size:0.55rem; padding:2px 5px;">RECOMMENDED</span>
+                </a>
+
+                <!-- ── STEP 4: MODELING ── -->
+                <div class="nav-group-label">④ MODELING</div>
+                <a class="nav-item" data-section="training" href="#" title="Train machine learning models on your data">
                     <i class="fas fa-brain"></i><span>Train Models</span>
                     <span class="badge bg-success ms-auto" style="font-size:0.6rem">AI GUIDED</span>
                 </a>
-                <a class="nav-item nav-item-sub" data-section="evaluation" href="#" title="Evaluate model performance with metrics and visualizations">
-                    <i class="fas fa-chart-bar"></i><span>Evaluation</span>
+                <a class="nav-item nav-item-sub" data-section="tuning" href="#" title="Optimize model hyperparameters for better performance">
+                    <i class="fas fa-sliders-h"></i><span>Hyperparameter Tuning</span>
+                </a>
+
+                <!-- ── STEP 5: EVALUATION ── -->
+                <div class="nav-group-label">⑤ EVALUATION</div>
+                <a class="nav-item" data-section="evaluation" href="#" title="Evaluate model performance with metrics and charts">
+                    <i class="fas fa-chart-bar"></i><span>Model Evaluation</span>
                 </a>
                 <a class="nav-item nav-item-sub" data-section="visualize" href="#" title="Create charts and plots to understand data and model performance">
                     <i class="fas fa-chart-line"></i><span>Visualizations</span>
                 </a>
-                <a class="nav-item nav-item-sub" data-section="tuning" href="#" title="Optimize model settings for better performance">
-                    <i class="fas fa-sliders-h"></i><span>Tuning</span>
+
+                <!-- ── SPECIALIZED ENGINES ── -->
+                <div class="nav-group-label">SPECIALIZED ENGINES</div>
+                <a class="nav-item" data-section="timeseries" href="#" title="ARIMA, SARIMA, Prophet — forecast time-based data">
+                    <i class="fas fa-chart-area"></i><span>Time Series</span>
                 </a>
-                <div class="nav-group-label">TRACKING</div>
-                <a class="nav-item" data-section="experiments" href="#" title="Track and compare all your experiments">
+                <a class="nav-item" data-section="anomaly" href="#" title="Detect outliers with Isolation Forest, One-Class SVM, Autoencoders">
+                    <i class="fas fa-exclamation-triangle"></i><span>Anomaly Detection</span>
+                </a>
+                <a class="nav-item" data-section="nlp" href="#" title="Sentiment analysis, keyword extraction, NER, text classification">
+                    <i class="fas fa-comment-dots"></i><span>NLP Engine</span>
+                </a>
+                <a class="nav-item" data-section="vision" href="#" title="Image preprocessing, feature extraction, classification">
+                    <i class="fas fa-eye"></i><span>Vision Engine</span>
+                </a>
+                <a class="nav-item" data-section="graph" href="#" title="Entity-relationship graphs, centrality metrics, community detection">
+                    <i class="fas fa-share-alt"></i><span>Knowledge Graph</span>
+                </a>
+
+                <!-- ── INSIGHTS & TRACKING ── -->
+                <div class="nav-group-label">INSIGHTS & TRACKING</div>
+                <a class="nav-item" data-section="experiments" href="#" title="Track, compare and reproduce all your experiments">
                     <i class="fas fa-flask"></i><span>Experiments</span>
                 </a>
-                <a class="nav-item" data-section="ai" href="#" title="Get AI-powered insights and recommendations">
+                <a class="nav-item" data-section="ai" href="#" title="Get AI-powered insights and recommendations on your results">
                     <i class="fas fa-robot"></i><span>AI Insights</span>
                 </a>
+                <a class="nav-item" data-section="monitoring" href="#" title="Model drift detection, performance alerts, alert rule management">
+                    <i class="fas fa-heartbeat"></i><span>Monitoring</span>
+                </a>
+
+                <!-- ── SYSTEM ── -->
                 <div class="nav-group-label">SYSTEM</div>
-                <a class="nav-item" href="/settings" title="Configure application settings and credentials">
+                <a class="nav-item" href="/settings" title="Configure application settings and API credentials">
                     <i class="fas fa-cog"></i><span>Settings</span>
                 </a>
             </div>
@@ -1018,6 +1059,56 @@
                                     <i class="fas fa-rocket me-1"></i>Start Workflow
                                 </button>
                             </div>
+                            <!-- Expert Mode: Agent Assistance -->
+                            <div class="mt-3 pt-3 border-top border-secondary">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="wfEnableAgent">
+                                        <label class="form-check-label fw-semibold" for="wfEnableAgent">
+                                            <i class="fas fa-network-wired me-1 text-info"></i>Enable Agent Assistance
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Run a specialist AI agent before or after the workflow for deeper insights</small>
+                                </div>
+                                <div id="wfAgentOptions" class="d-none">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Agent</label>
+                                            <select class="form-select form-select-sm" id="wfAgentType">
+                                                <option value="data_analyst">Data Analyst — deep EDA &amp; insights</option>
+                                                <option value="feature_engineer">Feature Engineer — automated feature creation</option>
+                                                <option value="model_selection">Model Selection — recommend best algorithms</option>
+                                                <option value="automl">AutoML — end-to-end automated ML pipeline</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Run agent</label>
+                                            <select class="form-select form-select-sm" id="wfAgentWhen">
+                                                <option value="before">Before workflow (plan first)</option>
+                                                <option value="after">After workflow (validate results)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Agent task <small class="text-muted">(optional — leave blank for default)</small></label>
+                                            <input type="text" class="form-control form-control-sm" id="wfAgentTask" placeholder="e.g., Identify the most predictive features and flag any data issues">
+                                        </div>
+                                        <div class="col-md-12 d-flex justify-content-end">
+                                            <button class="btn btn-info btn-sm" id="btnWfRunAgent"><i class="fas fa-network-wired me-1"></i>Run Agent Now</button>
+                                        </div>
+                                    </div>
+                                    <div id="wfAgentOutputArea" class="mt-3" style="display:none">
+                                        <div class="card glass-card">
+                                            <div class="card-header d-flex justify-content-between align-items-center">
+                                                <span><i class="fas fa-terminal me-2"></i>Agent Output</span>
+                                                <span class="badge bg-secondary" id="wfAgentStatusBadge">Idle</span>
+                                            </div>
+                                            <div class="card-body" id="wfAgentResults" style="max-height:350px;overflow-y:auto">
+                                                <div class="text-center text-muted py-3"><i class="fas fa-robot fa-2x mb-2 d-block opacity-25"></i><p class="small">Agent output will appear here</p></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1920,6 +2011,470 @@
                                         <p><strong>AI responses will appear here</strong></p>
                                         <p class="small">The AI assistant analyzes your data and provides contextual recommendations to help you make better decisions throughout your ML workflow.</p>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ TIME SERIES ══════════ -->
+                <section class="content-section" id="sec-timeseries">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-chart-area me-2"></i><strong>Time Series Engine</strong> — ARIMA, SARIMA, Exponential Smoothing, Prophet
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-sliders-h me-2"></i>Configuration</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-2">
+                                            <label class="form-label">Date/Time Column</label>
+                                            <select class="form-select form-select-sm" id="tsDateCol"></select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Target Value Column</label>
+                                            <select class="form-select form-select-sm" id="tsValueCol"></select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Frequency</label>
+                                            <select class="form-select form-select-sm" id="tsFreq">
+                                                <option value="D">Daily</option>
+                                                <option value="W">Weekly</option>
+                                                <option value="M">Monthly</option>
+                                                <option value="Q">Quarterly</option>
+                                                <option value="Y">Yearly</option>
+                                                <option value="H">Hourly</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Method</label>
+                                            <select class="form-select form-select-sm" id="tsMethod">
+                                                <option value="arima">ARIMA</option>
+                                                <option value="sarima">SARIMA</option>
+                                                <option value="exponential">Exponential Smoothing</option>
+                                                <option value="prophet">Prophet</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Forecast Periods</label>
+                                            <input type="number" class="form-control form-control-sm" id="tsForecastPeriods" value="30" min="1" max="365">
+                                        </div>
+                                        <div class="col-md-2 d-flex gap-2 align-items-end">
+                                            <button class="btn btn-primary btn-sm flex-fill" id="tsAnalyzeBtn"><i class="fas fa-search me-1"></i>Analyze</button>
+                                            <button class="btn btn-success btn-sm flex-fill" id="tsForecastBtn"><i class="fas fa-chart-line me-1"></i>Forecast</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-chart-line me-2"></i>Results</div>
+                                <div class="card-body" id="tsResultsArea">
+                                    <div class="text-center text-muted py-4"><i class="fas fa-chart-area fa-3x mb-2 d-block opacity-25"></i><p>Configure and run analysis to see results</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ ANOMALY DETECTION ══════════ -->
+                <section class="content-section" id="sec-anomaly">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-exclamation-triangle me-2"></i><strong>Anomaly Detection Engine</strong> — Isolation Forest, One-Class SVM, Autoencoder, LSTM
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-sliders-h me-2"></i>Configuration</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Detection Method</label>
+                                            <select class="form-select form-select-sm" id="anomalyMethod">
+                                                <option value="isolation_forest">Isolation Forest</option>
+                                                <option value="one_class_svm">One-Class SVM</option>
+                                                <option value="autoencoder">Autoencoder</option>
+                                                <option value="lof">Local Outlier Factor</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Contamination (% anomalies expected)</label>
+                                            <input type="number" class="form-control form-control-sm" id="anomalyContamination" value="0.05" min="0.01" max="0.5" step="0.01">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Feature Columns <small class="text-muted">(leave empty = all numeric)</small></label>
+                                            <select class="form-select form-select-sm" id="anomalyFeatureCols" multiple style="height:72px"></select>
+                                        </div>
+                                        <div class="col-md-2 d-flex flex-column gap-2 align-items-stretch">
+                                            <button class="btn btn-warning btn-sm" id="anomalyDetectBtn"><i class="fas fa-search me-1"></i>Detect Anomalies</button>
+                                            <button class="btn btn-outline-secondary btn-sm" id="anomalyAllMethodsBtn"><i class="fas fa-layer-group me-1"></i>Compare All</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-bug me-2"></i>Detection Results</div>
+                                <div class="card-body" id="anomalyResultsArea">
+                                    <div class="text-center text-muted py-4"><i class="fas fa-exclamation-triangle fa-3x mb-2 d-block opacity-25"></i><p>Run detection to see anomalies</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ NLP ENGINE ══════════ -->
+                <section class="content-section" id="sec-nlp">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-comment-dots me-2"></i><strong>NLP Engine</strong> — Sentiment, Keywords, NER, Topics, Classification, Vectorization
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-sliders-h me-2"></i>Configuration</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-2">
+                                            <button class="btn btn-outline-info btn-sm w-100" id="nlpDetectColsBtn"><i class="fas fa-search me-1"></i>Auto-detect Columns</button>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Text Column</label>
+                                            <select class="form-select form-select-sm" id="nlpTextCol"></select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Analysis Type</label>
+                                            <select class="form-select form-select-sm" id="nlpTask">
+                                                <option value="sentiment">Sentiment Analysis</option>
+                                                <option value="keywords">Keyword Extraction</option>
+                                                <option value="ner">Named Entity Recognition</option>
+                                                <option value="topics">Topic Modeling (LDA)</option>
+                                                <option value="wordcloud">Word Cloud Data</option>
+                                                <option value="stats">Text Statistics</option>
+                                                <option value="vectorize">Vectorize (TF-IDF / BoW)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Sample Size (rows)</label>
+                                            <input type="number" class="form-control form-control-sm" id="nlpSampleSize" value="500" min="10" max="10000">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-primary btn-sm w-100" id="nlpRunBtn"><i class="fas fa-play me-1"></i>Run Analysis</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-align-left me-2"></i>NLP Results</div>
+                                <div class="card-body" id="nlpResultsArea">
+                                    <div class="text-center text-muted py-4"><i class="fas fa-comment-dots fa-3x mb-2 d-block opacity-25"></i><p>Select a text column and run analysis</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ VISION ENGINE ══════════ -->
+                <section class="content-section" id="sec-vision">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-eye me-2"></i><strong>Vision Engine</strong> — Image preprocessing, feature extraction, classification
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-upload me-2"></i>Load &amp; Analyze Image</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Upload Image File</label>
+                                            <input type="file" class="form-control form-control-sm" id="visionImageFile" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Or Image URL</label>
+                                            <input type="text" class="form-control form-control-sm" id="visionImageUrl" placeholder="https://...">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Operation</label>
+                                            <select class="form-select form-select-sm" id="visionOperation">
+                                                <option value="stats">Image Statistics</option>
+                                                <option value="features">Feature Extraction</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 d-flex gap-2 align-items-end">
+                                            <button class="btn btn-primary btn-sm flex-fill" id="visionLoadBtn"><i class="fas fa-upload me-1"></i>Load</button>
+                                            <button class="btn btn-success btn-sm flex-fill" id="visionAnalyzeBtn"><i class="fas fa-microscope me-1"></i>Analyze</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-image me-2"></i>Vision Results</div>
+                                <div class="card-body" id="visionResultsArea">
+                                    <div class="text-center text-muted py-4"><i class="fas fa-eye fa-3x mb-2 d-block opacity-25"></i><p>Load an image to begin analysis</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ AI AGENTS ══════════ -->
+                <!-- ══════════ KNOWLEDGE GRAPH ══════════ -->
+                <section class="content-section" id="sec-graph">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-project-diagram me-2"></i><strong>Knowledge Graph</strong> — Schema graphs, entity relationships, centrality, community detection
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-sliders-h me-2"></i>Graph Configuration</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Analysis Type</label>
+                                            <select class="form-select form-select-sm" id="graphType">
+                                                <option value="schema">Schema Graph (Feature Correlations)</option>
+                                                <option value="entity">Entity Graph (Value Co-occurrence)</option>
+                                                <option value="metrics">Graph Metrics (Centrality, PageRank)</option>
+                                                <option value="communities">Community Detection</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Correlation Threshold</label>
+                                            <input type="number" class="form-control form-control-sm" id="graphThreshold" value="0.3" min="0" max="1" step="0.05">
+                                            <small class="text-muted">Minimum correlation to draw an edge</small>
+                                        </div>
+                                        <div class="col-md-5 d-flex gap-2 align-items-end">
+                                            <button class="btn btn-primary btn-sm flex-fill" id="graphBuildBtn"><i class="fas fa-sitemap me-1"></i>Build Graph</button>
+                                            <button class="btn btn-outline-info btn-sm flex-fill" id="graphExportBtn"><i class="fas fa-download me-1"></i>Export JSON</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-network-wired me-2"></i>Graph Results</div>
+                                <div class="card-body" id="graphResultsArea">
+                                    <div class="text-center text-muted py-4"><i class="fas fa-project-diagram fa-3x mb-2 d-block opacity-25"></i><p>Build a graph to explore feature relationships</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ INDUSTRY TEMPLATES ══════════ -->
+                <section class="content-section" id="sec-templates">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-layer-group me-2"></i><strong>Industry Templates</strong> — 10 pre-built ML templates: Retail, Finance, Healthcare, Manufacturing &amp; more
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-magic me-2"></i>Select &amp; Apply Template</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Select Template</label>
+                                            <select class="form-select form-select-sm" id="templateSelect">
+                                                <option value="">Loading templates...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 d-flex gap-2 align-items-end">
+                                            <button class="btn btn-outline-info btn-sm flex-fill" id="templateViewBtn"><i class="fas fa-eye me-1"></i>View Details</button>
+                                            <button class="btn btn-primary btn-sm flex-fill" id="templateApplyBtn"><i class="fas fa-check me-1"></i>Apply to My Data</button>
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button class="btn btn-success btn-sm w-100" id="templateRecommendBtn"><i class="fas fa-lightbulb me-1"></i>Auto-Recommend for My Data</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-info-circle me-2"></i>Template Details</div>
+                                <div class="card-body" id="templateDetailsArea">
+                                    <div class="text-center text-muted py-3"><i class="fas fa-layer-group fa-3x mb-2 d-block opacity-25"></i><p>Select a template to view its details</p></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-lightbulb me-2"></i>Recommendation Result</div>
+                                <div class="card-body" id="templateRecommendResult">
+                                    <div class="text-center text-muted py-3"><i class="fas fa-magic fa-3x mb-2 d-block opacity-25"></i><p>Click "Auto-Recommend" to analyse your dataset</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ MONITORING ══════════ -->
+                <section class="content-section" id="sec-monitoring">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner">
+                                <i class="fas fa-heartbeat me-2"></i><strong>Real-Time Monitoring</strong> — Drift detection, performance alerts, configurable alert rules
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <!-- Initialize Monitoring -->
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-play-circle me-2"></i>Initialize Monitoring</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Model ID / Name</label>
+                                            <input type="text" class="form-control form-control-sm" id="monitorModelId" placeholder="e.g., churn_v1">
+                                        </div>
+                                        <div class="col-md-7">
+                                            <label class="form-label">Baseline Metrics (JSON)</label>
+                                            <input type="text" class="form-control form-control-sm font-monospace" id="monitorBaselineMetrics" placeholder='{"accuracy": 0.92, "precision": 0.88}'>
+                                            <small class="text-muted">Paste your training-time metrics here</small>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-success btn-sm w-100" id="monitorSetupBtn"><i class="fas fa-satellite-dish me-1"></i>Start Monitoring</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Create Alert Rule -->
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-bell me-2"></i>Create Alert Rule</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-2">
+                                            <label class="form-label">Rule Name</label>
+                                            <input type="text" class="form-control form-control-sm" id="alertRuleName" placeholder="e.g., low_accuracy">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Metric</label>
+                                            <input type="text" class="form-control form-control-sm" id="alertMetricName" placeholder="e.g., accuracy">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Operator</label>
+                                            <select class="form-select form-select-sm" id="alertOperator">
+                                                <option value="<">&lt; less than</option>
+                                                <option value=">">&gt; greater than</option>
+                                                <option value="<=">&lt;= less/equal</option>
+                                                <option value=">=">&gt;= greater/equal</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Threshold</label>
+                                            <input type="number" class="form-control form-control-sm" id="alertThreshold" placeholder="0.8" step="0.01">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Severity</label>
+                                            <select class="form-select form-select-sm" id="alertSeverity">
+                                                <option value="warning">⚠ Warning</option>
+                                                <option value="critical">🔴 Critical</option>
+                                                <option value="info">ℹ Info</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-warning btn-sm w-100" id="alertCreateBtn"><i class="fas fa-plus me-1"></i>Create Rule</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Drift Detection -->
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-random me-2"></i>Drift Detection</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Significance Threshold (α)</label>
+                                            <input type="number" class="form-control form-control-sm" id="driftThreshold" value="0.05" min="0.01" max="0.5" step="0.01">
+                                            <small class="text-muted">Check if session data drifted from baseline</small>
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button class="btn btn-outline-warning btn-sm w-100" id="driftDetectBtn"><i class="fas fa-search me-1"></i>Run Drift Detection</button>
+                                        </div>
+                                        <div class="col-md-6" id="driftResultArea"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Performance Check -->
+                        <div class="col-12">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-tachometer-alt me-2"></i>Performance Check</div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Current Metrics (JSON)</label>
+                                            <input type="text" class="form-control form-control-sm font-monospace" id="perfMetricsInput" placeholder='{"accuracy": 0.85, "precision": 0.81}'>
+                                            <small class="text-muted">Compare against baseline to detect degradation</small>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Degradation Alert Threshold (%)</label>
+                                            <input type="number" class="form-control form-control-sm" id="perfDegradationPct" value="5" min="1" max="50">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-outline-info btn-sm w-100" id="perfCheckBtn"><i class="fas fa-chart-bar me-1"></i>Check Performance</button>
+                                        </div>
+                                        <div class="col-md-2" id="perfResultArea"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Alert Rules + Recent Alerts -->
+                        <div class="col-md-6">
+                            <div class="card glass-card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-list-alt me-2"></i>Alert Rules</span>
+                                    <button class="btn btn-outline-secondary btn-sm" id="alertRulesRefreshBtn" style="font-size:0.7rem;padding:2px 8px"><i class="fas fa-sync me-1"></i>Refresh</button>
+                                </div>
+                                <div class="card-body" id="alertRulesArea">
+                                    <div class="text-center text-muted py-3"><i class="fas fa-bell-slash fa-2x mb-2 d-block opacity-25"></i><p class="small">No rules yet. Initialize monitoring first.</p></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card glass-card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-exclamation-circle me-2"></i>Recent Alerts</span>
+                                    <button class="btn btn-outline-secondary btn-sm" id="alertsRefreshBtn" style="font-size:0.7rem;padding:2px 8px"><i class="fas fa-sync me-1"></i>Refresh</button>
+                                </div>
+                                <div class="card-body" id="alertsListArea">
+                                    <div class="text-center text-muted py-3"><i class="fas fa-check-circle fa-2x mb-2 d-block opacity-25"></i><p class="small">No alerts triggered.</p></div>
                                 </div>
                             </div>
                         </div>

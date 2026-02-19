@@ -263,6 +263,10 @@ function navigateTo(section) {
         workflow: "AI Workflow",
         training: "Train Models", evaluation: "Evaluation", visualize: "Visualizations",
         tuning: "Hyperparameter Tuning", experiments: "Experiments", ai: "AI Insights",
+        timeseries: "Time Series", anomaly: "Anomaly Detection",
+        nlp: "NLP Engine", vision: "Vision Engine",
+        graph: "Knowledge Graph", templates: "Industry Templates",
+        monitoring: "Monitoring",
     };
     document.getElementById("sectionTitle").textContent = titles[section] || section;
 
@@ -271,6 +275,14 @@ function navigateTo(section) {
         loadExperiments();
     } else if (section === "tuning") {
         populateTuningModelSelector();
+    } else if (section === "timeseries") {
+        tsPopulateColumns();
+    } else if (section === "anomaly") {
+        anomalyPopulateColumns();
+    } else if (section === "nlp") {
+        nlpPopulateColumns();
+    } else if (section === "templates") {
+        templatesLoadList();
     }
 }
 
@@ -4165,6 +4177,758 @@ function renderWorkflowLLM(state) {
 
     container.innerHTML = html || '<div class="text-muted">Waiting for AI analysis…</div>';
 }
+
+// ════════════════════════════════════════════════════════
+//  PHASE 3 — TIME SERIES
+// ════════════════════════════════════════════════════════
+
+function tsPopulateColumns() {
+    API.get("/api/data/columns").then(res => {
+        if (res.status !== "ok") return;
+        const cols = res.data?.columns || [];
+        ["tsDateCol", "tsValueCol"].forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            sel.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join("");
+        });
+    }).catch(() => {});
+}
+
+async function tsRun(mode) {
+    const dateCol   = document.getElementById("tsDateCol").value;
+    const valueCol  = document.getElementById("tsValueCol").value;
+    const freq      = document.getElementById("tsFreq").value;
+    const method    = document.getElementById("tsMethod").value;
+    const periods   = parseInt(document.getElementById("tsForecastPeriods").value) || 30;
+    const area      = document.getElementById("tsResultsArea");
+
+    if (!dateCol || !valueCol) { showToast("Select date and value columns first", "warning"); return; }
+
+    area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Running…</p></div>';
+
+    const endpoint = mode === "analyze" ? "/api/time_series/analyze" : "/api/time_series/forecast";
+    const payload  = { date_col: dateCol, value_col: valueCol, frequency: freq, method, forecast_periods: periods };
+
+    try {
+        const res = await API.post(endpoint, payload);
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>${mode === "analyze" ? "Series Analysis" : "Forecast"} Complete</div>`;
+        if (d.stationarity) {
+            const s = d.stationarity;
+            html += `<div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Stationary</span><span class="badge ${s.is_stationary ? 'bg-success' : 'bg-warning'}">${s.is_stationary ? "Yes" : "No"}</span></div>
+                <div class="adv-kv"><span>ADF p-value</span><span>${s.adf_pvalue?.toFixed(4) ?? "—"}</span></div>
+                <div class="adv-kv"><span>Trend</span><span>${d.trend?.direction ?? "—"}</span></div>
+                <div class="adv-kv"><span>Points</span><span>${d.n_observations ?? "—"}</span></div>
+            </div>`;
+        }
+        if (d.forecast) {
+            html += `<div class="adv-section-label">Forecast Summary</div>
+            <div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Method</span><span>${d.method ?? method}</span></div>
+                <div class="adv-kv"><span>Periods</span><span>${d.forecast.length ?? periods}</span></div>
+                <div class="adv-kv"><span>First Forecast</span><span>${d.forecast[0]?.toFixed(2) ?? "—"}</span></div>
+                <div class="adv-kv"><span>Last Forecast</span><span>${d.forecast[d.forecast.length-1]?.toFixed(2) ?? "—"}</span></div>
+            </div>`;
+        }
+        if (d.llm_insights) {
+            html += `<div class="adv-section-label">AI Insights</div><div class="adv-llm-box">${renderMarkdown(d.llm_insights)}</div>`;
+        }
+        area.innerHTML = html;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener("click", e => {
+    if (e.target.closest("#tsAnalyzeBtn"))  tsRun("analyze");
+    if (e.target.closest("#tsForecastBtn")) tsRun("forecast");
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 3 — ANOMALY DETECTION
+// ════════════════════════════════════════════════════════
+
+function anomalyPopulateColumns() {
+    API.get("/api/data/columns").then(res => {
+        if (res.status !== "ok") return;
+        const cols = (res.data?.columns || []).filter(c => res.data?.dtypes?.[c] !== "object");
+        const sel = document.getElementById("anomalyFeatureCols");
+        if (!sel) return;
+        sel.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join("");
+    }).catch(() => {});
+}
+
+async function anomalyRun(allMethods = false) {
+    const method        = document.getElementById("anomalyMethod").value;
+    const contamination = parseFloat(document.getElementById("anomalyContamination").value) || 0.05;
+    const sel           = document.getElementById("anomalyFeatureCols");
+    const features      = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
+    const area          = document.getElementById("anomalyResultsArea");
+
+    area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-warning"></div><p class="mt-2 text-muted">Detecting anomalies…</p></div>';
+
+    const endpoint = allMethods ? "/api/anomaly/detect-all" : "/api/anomaly/detect";
+    const payload  = { method, contamination, feature_columns: features.length ? features : null };
+
+    try {
+        const res = await API.post(endpoint, payload);
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>Detection Complete</div>`;
+        if (d.n_anomalies !== undefined) {
+            html += `<div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Total Rows</span><span>${d.n_total}</span></div>
+                <div class="adv-kv"><span>Anomalies Found</span><span class="text-warning fw-bold">${d.n_anomalies}</span></div>
+                <div class="adv-kv"><span>Rate</span><span>${d.anomaly_rate?.toFixed(2)}%</span></div>
+                <div class="adv-kv"><span>Method</span><span>${d.method ?? method}</span></div>
+            </div>`;
+        }
+        if (d.results) {
+            html += `<div class="adv-section-label">Results by Method</div><div class="adv-kv-grid mb-3">`;
+            for (const [m, r] of Object.entries(d.results)) {
+                html += `<div class="adv-kv"><span>${m}</span><span>${r.n_anomalies ?? "—"} anomalies</span></div>`;
+            }
+            html += `</div>`;
+        }
+        if (d.llm_insights) {
+            html += `<div class="adv-section-label">AI Insights</div><div class="adv-llm-box">${renderMarkdown(d.llm_insights)}</div>`;
+        }
+        area.innerHTML = html;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener("click", e => {
+    if (e.target.closest("#anomalyDetectBtn"))      anomalyRun(false);
+    if (e.target.closest("#anomalyAllMethodsBtn"))  anomalyRun(true);
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 3 — NLP ENGINE
+// ════════════════════════════════════════════════════════
+
+function nlpPopulateColumns() {
+    API.post("/api/nlp/detect-text-columns", {}).then(res => {
+        if (res.status !== "ok") return;
+        const cols = res.data?.text_columns || [];
+        const sel = document.getElementById("nlpTextCol");
+        if (!sel) return;
+        // Also populate all columns as fallback
+        API.get("/api/data/columns").then(allRes => {
+            const allCols = allRes.data?.columns || [];
+            sel.innerHTML = allCols.map(c =>
+                `<option value="${c}" ${cols.includes(c) ? "style='font-weight:600;color:var(--info)'" : ""}>${c}${cols.includes(c) ? " ✦" : ""}</option>`
+            ).join("");
+            if (cols.length) sel.value = cols[0];
+        });
+    }).catch(() => {
+        API.get("/api/data/columns").then(res => {
+            const cols = res.data?.columns || [];
+            const sel = document.getElementById("nlpTextCol");
+            if (sel) sel.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join("");
+        });
+    });
+}
+
+async function nlpRun() {
+    const textCol    = document.getElementById("nlpTextCol").value;
+    const task       = document.getElementById("nlpTask").value;
+    const sampleSize = parseInt(document.getElementById("nlpSampleSize").value) || 500;
+    const area       = document.getElementById("nlpResultsArea");
+
+    if (!textCol) { showToast("Select a text column first", "warning"); return; }
+
+    area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Analyzing text…</p></div>';
+
+    const endpoints = {
+        sentiment: "/api/nlp/sentiment", keywords: "/api/nlp/keywords",
+        ner: "/api/nlp/ner", topics: "/api/nlp/topics",
+        wordcloud: "/api/nlp/wordcloud", stats: "/api/nlp/stats", vectorize: "/api/nlp/vectorize"
+    };
+    const payload = { text_column: textCol, sample_size: sampleSize, n_topics: 5, n_keywords: 20 };
+
+    try {
+        const res = await API.post(endpoints[task] || "/api/nlp/stats", payload);
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>${task.charAt(0).toUpperCase()+task.slice(1)} Complete — <small class="text-muted">${d.analyzed_count ?? d.n_samples ?? ""} samples</small></div>`;
+
+        if (task === "sentiment" && d.distribution) {
+            html += `<div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Positive</span><span class="text-success">${d.distribution.positive ?? 0}</span></div>
+                <div class="adv-kv"><span>Negative</span><span class="text-danger">${d.distribution.negative ?? 0}</span></div>
+                <div class="adv-kv"><span>Neutral</span><span class="text-muted">${d.distribution.neutral ?? 0}</span></div>
+                <div class="adv-kv"><span>Avg Score</span><span>${d.avg_score?.toFixed(3) ?? "—"}</span></div>
+            </div>`;
+        }
+        if (task === "keywords" && d.top_keywords) {
+            html += `<div class="adv-section-label">Top Keywords</div><div class="d-flex flex-wrap gap-1 mb-3">`;
+            d.top_keywords.slice(0, 30).forEach(([word, score]) => {
+                html += `<span class="badge adv-keyword-badge">${word} <small>${score?.toFixed(2)}</small></span>`;
+            });
+            html += `</div>`;
+        }
+        if (task === "ner" && d.entities) {
+            html += `<div class="adv-section-label">Entities Found</div><div class="adv-kv-grid mb-3">`;
+            for (const [type, count] of Object.entries(d.entity_counts ?? {})) {
+                html += `<div class="adv-kv"><span>${type}</span><span>${count}</span></div>`;
+            }
+            html += `</div>`;
+        }
+        if (task === "topics" && d.topics) {
+            html += `<div class="adv-section-label">Discovered Topics</div>`;
+            d.topics.forEach((t, i) => {
+                html += `<div class="adv-topic-row"><span class="adv-topic-id">Topic ${i+1}</span><span>${(t.words || []).join(", ")}</span></div>`;
+            });
+        }
+        if (task === "stats" && d.stats) {
+            html += `<div class="adv-kv-grid mb-3">`;
+            for (const [k, v] of Object.entries(d.stats)) {
+                html += `<div class="adv-kv"><span>${k.replace(/_/g," ")}</span><span>${typeof v === "number" ? v.toFixed(2) : v}</span></div>`;
+            }
+            html += `</div>`;
+        }
+        if (task === "vectorize" && d.shape) {
+            html += `<div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Matrix Shape</span><span>${d.shape[0]} × ${d.shape[1]}</span></div>
+                <div class="adv-kv"><span>Method</span><span>${d.method ?? "TF-IDF"}</span></div>
+                <div class="adv-kv"><span>Vocabulary Size</span><span>${d.vocab_size ?? "—"}</span></div>
+            </div>`;
+        }
+        if (d.llm_insights) {
+            html += `<div class="adv-section-label">AI Insights</div><div class="adv-llm-box">${renderMarkdown(d.llm_insights)}</div>`;
+        }
+        area.innerHTML = html;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener("click", e => {
+    if (e.target.closest("#nlpDetectColsBtn")) nlpPopulateColumns();
+    if (e.target.closest("#nlpRunBtn"))        nlpRun();
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 3 — VISION ENGINE
+// ════════════════════════════════════════════════════════
+
+async function visionLoad() {
+    const fileInput = document.getElementById("visionImageFile");
+    const urlInput  = document.getElementById("visionImageUrl");
+    const area      = document.getElementById("visionResultsArea");
+
+    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading image…</p></div>';
+
+    try {
+        let res;
+        if (fileInput.files.length > 0) {
+            const fd = new FormData();
+            fd.append("image", fileInput.files[0]);
+            const r = await fetch("/api/vision/load", { method: "POST", body: fd });
+            res = await r.json();
+        } else if (urlInput.value.trim()) {
+            res = await API.post("/api/vision/load", { url: urlInput.value.trim() });
+        } else {
+            showToast("Upload a file or enter an image URL", "warning"); area.innerHTML = ""; return;
+        }
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        area.innerHTML = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>Image Loaded</div>
+            <div class="adv-kv-grid">
+                <div class="adv-kv"><span>Width</span><span>${d.width ?? "—"}px</span></div>
+                <div class="adv-kv"><span>Height</span><span>${d.height ?? "—"}px</span></div>
+                <div class="adv-kv"><span>Mode</span><span>${d.mode ?? "—"}</span></div>
+                <div class="adv-kv"><span>Format</span><span>${d.format ?? "—"}</span></div>
+            </div>`;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+async function visionAnalyze() {
+    const operation = document.getElementById("visionOperation").value;
+    const area      = document.getElementById("visionResultsArea");
+
+    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-success"></div><p class="mt-2 text-muted">Analyzing…</p></div>';
+
+    try {
+        const endpoint = operation === "features" ? "/api/vision/features" : "/api/vision/stats";
+        const res = await API.post(endpoint, {});
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>${operation === "features" ? "Feature Extraction" : "Image Statistics"}</div>`;
+        if (d.statistics) {
+            html += `<div class="adv-kv-grid mb-3">`;
+            for (const [k, v] of Object.entries(d.statistics)) {
+                const display = typeof v === "object" ? JSON.stringify(v) : (typeof v === "number" ? v.toFixed(3) : v);
+                html += `<div class="adv-kv"><span>${k.replace(/_/g," ")}</span><span>${display}</span></div>`;
+            }
+            html += `</div>`;
+        }
+        if (d.feature_vector) {
+            html += `<div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Feature Length</span><span>${d.feature_vector.length}</span></div>
+                <div class="adv-kv"><span>Method</span><span>${d.method ?? "—"}</span></div>
+            </div>`;
+        }
+        area.innerHTML = html;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener("click", e => {
+    if (e.target.closest("#visionLoadBtn"))    visionLoad();
+    if (e.target.closest("#visionAnalyzeBtn")) visionAnalyze();
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 4 — AI AGENTS
+// ════════════════════════════════════════════════════════
+
+let _agentSessionId = null;
+
+// ════════════════════════════════════════════════════════
+//  AI AGENTS — integrated into AI Workflow
+// ════════════════════════════════════════════════════════
+
+// Toggle the agent options panel in the workflow config card
+document.addEventListener("change", e => {
+    if (e.target.id === "wfEnableAgent") {
+        const panel = document.getElementById("wfAgentOptions");
+        if (panel) panel.classList.toggle("d-none", !e.target.checked);
+    }
+});
+
+async function wfRunAgent() {
+    const agentType = document.getElementById("wfAgentType")?.value;
+    const task      = (document.getElementById("wfAgentTask")?.value || "").trim();
+    const area      = document.getElementById("wfAgentResults");
+    const badge     = document.getElementById("wfAgentStatusBadge");
+    const wrapper   = document.getElementById("wfAgentOutputArea");
+
+    if (!agentType) { showToast("Select an agent type", "warning"); return; }
+
+    const defaultTasks = {
+        data_analyst:     "Analyze the loaded dataset in depth: identify key patterns, outliers, correlations, and data quality issues. Provide actionable recommendations.",
+        feature_engineer: "Suggest and create the most impactful new features from the existing columns. Focus on interactions, ratios, and domain-relevant transformations.",
+        model_selection:  "Recommend the best machine learning algorithms for this dataset and task. Explain the tradeoffs and expected performance.",
+        automl:           "Run an end-to-end automated ML pipeline: analyse data, engineer features, select models, and report the best configuration found."
+    };
+    const finalTask = task || defaultTasks[agentType] || "Analyse the dataset and provide insights.";
+
+    if (wrapper) wrapper.style.display = "";
+    if (badge) { badge.className = "badge bg-warning"; badge.textContent = "Running…"; }
+    if (area)  area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Agent working…</p></div>';
+
+    try {
+        const res = await API.post("/api/agents/run", { agent_type: agentType, task: finalTask });
+        if (res.status !== "ok") {
+            if (area)  area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+            if (badge) { badge.className = "badge bg-danger"; badge.textContent = "Error"; }
+            return;
+        }
+        const d = res.data;
+        if (badge) { badge.className = "badge bg-success"; badge.textContent = "Complete"; }
+
+        let html = `<div class="adv-result-header"><i class="fas fa-robot text-info me-2"></i><strong>${d.agent_type ?? agentType}</strong> — <span class="text-success">Done</span></div>`;
+        if (d.plan?.length) {
+            html += `<div class="adv-section-label">Execution Plan</div><ol class="adv-plan-list">`;
+            d.plan.forEach(step => { html += `<li>${step}</li>`; });
+            html += `</ol>`;
+        }
+        if (d.results) {
+            html += `<div class="adv-section-label">Results</div>`;
+            html += typeof d.results === "object"
+                ? `<pre class="adv-json-pre">${JSON.stringify(d.results, null, 2)}</pre>`
+                : `<div class="adv-llm-box">${renderMarkdown(String(d.results))}</div>`;
+        }
+        if (d.reflection) {
+            html += `<div class="adv-section-label">Agent Reflection</div><div class="adv-llm-box">${renderMarkdown(d.reflection)}</div>`;
+        }
+        if (area) area.innerHTML = html;
+    } catch(e) {
+        if (area)  area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+        if (badge) { badge.className = "badge bg-danger"; badge.textContent = "Error"; }
+    }
+}
+
+// Button wired in workflow config card
+document.addEventListener("click", e => {
+    if (e.target.closest("#btnWfRunAgent")) wfRunAgent();
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 4 — KNOWLEDGE GRAPH
+// ════════════════════════════════════════════════════════
+
+async function graphBuild() {
+    const graphType = document.getElementById("graphType").value;
+    const threshold = parseFloat(document.getElementById("graphThreshold").value) || 0.3;
+    const area      = document.getElementById("graphResultsArea");
+
+    area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-info"></div><p class="mt-2 text-muted">Building graph…</p></div>';
+
+    const endpoints = {
+        schema: "/api/graph/schema", entity: "/api/graph/entity",
+        metrics: "/api/graph/metrics", communities: "/api/graph/communities"
+    };
+    const payload = { correlation_threshold: threshold, method: "pearson" };
+
+    try {
+        const res = await API.post(endpoints[graphType] || "/api/graph/schema", payload);
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>${graphType.charAt(0).toUpperCase()+graphType.slice(1)} Graph Built</div>`;
+
+        if (d.nodes !== undefined) {
+            html += `<div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Nodes</span><span>${d.nodes}</span></div>
+                <div class="adv-kv"><span>Edges</span><span>${d.edges}</span></div>
+                <div class="adv-kv"><span>Density</span><span>${d.density?.toFixed(4) ?? "—"}</span></div>
+            </div>`;
+        }
+        if (d.communities) {
+            html += `<div class="adv-section-label">${d.n_communities ?? d.communities.length} Communities</div>`;
+            d.communities.slice(0, 5).forEach((comm, i) => {
+                html += `<div class="adv-topic-row"><span class="adv-topic-id">C${i+1}</span><span>${comm.slice(0,8).join(", ")}${comm.length>8?" …":""}</span></div>`;
+            });
+        }
+        if (d.top_central_nodes) {
+            html += `<div class="adv-section-label">Most Central Nodes</div><div class="adv-kv-grid mb-3">`;
+            d.top_central_nodes.slice(0,6).forEach(([node, score]) => {
+                html += `<div class="adv-kv"><span>${node}</span><span>${typeof score === "number" ? score.toFixed(4) : score}</span></div>`;
+            });
+            html += `</div>`;
+        }
+        if (d.llm_insights) {
+            html += `<div class="adv-section-label">AI Insights</div><div class="adv-llm-box">${renderMarkdown(d.llm_insights)}</div>`;
+        }
+        area.innerHTML = html;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+async function graphExport() {
+    try {
+        const res = await API.post("/api/graph/export", { format: "json" });
+        if (res.status !== "ok") { showToast(res.message, "danger"); return; }
+        const blob = new Blob([JSON.stringify(res.data, null, 2)], {type: "application/json"});
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "knowledge_graph.json"; a.click();
+        showToast("Graph exported", "success");
+    } catch(e) { showToast("Export failed: " + e.message, "danger"); }
+}
+
+document.addEventListener("click", e => {
+    if (e.target.closest("#graphBuildBtn"))  graphBuild();
+    if (e.target.closest("#graphExportBtn")) graphExport();
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 4 — INDUSTRY TEMPLATES
+// ════════════════════════════════════════════════════════
+
+async function templatesLoadList() {
+    try {
+        const res = await API.get("/api/templates/list");
+        if (res.status !== "ok") return;
+        const templates = res.data?.templates || [];
+        const sel = document.getElementById("templateSelect");
+        if (!sel) return;
+        sel.innerHTML = templates.map(t => `<option value="${t.id}">${t.name} — ${t.industry}</option>`).join("");
+    } catch(e) {}
+}
+
+async function templateViewDetails() {
+    const id   = document.getElementById("templateSelect").value;
+    const area = document.getElementById("templateDetailsArea");
+    if (!id) { showToast("Select a template first", "warning"); return; }
+
+    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-secondary"></div></div>';
+
+    try {
+        const res = await API.get(`/api/templates/get/${id}`);
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const t = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-layer-group text-info me-2"></i>${t.name}</div>
+            <div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Industry</span><span>${t.industry}</span></div>
+                <div class="adv-kv"><span>Task Type</span><span>${t.task_type ?? "—"}</span></div>
+                <div class="adv-kv"><span>Target Column</span><span>${t.target_column ?? "—"}</span></div>
+            </div>
+            <p class="text-muted small mb-3">${t.description ?? ""}</p>`;
+        if (t.recommended_models?.length) {
+            html += `<div class="adv-section-label">Recommended Models</div>
+                <div class="d-flex flex-wrap gap-1 mb-3">${t.recommended_models.map(m => `<span class="badge bg-secondary">${m}</span>`).join("")}</div>`;
+        }
+        if (t.feature_engineering?.length) {
+            html += `<div class="adv-section-label">Feature Engineering Steps</div>
+                <ul class="small text-muted">${t.feature_engineering.slice(0,6).map(f => `<li>${f}</li>`).join("")}</ul>`;
+        }
+        area.innerHTML = html;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+async function templateApply() {
+    const id   = document.getElementById("templateSelect").value;
+    const area = document.getElementById("templateDetailsArea");
+    if (!id) { showToast("Select a template first", "warning"); return; }
+
+    area.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-success"></div><p class="mt-2 text-muted">Applying template…</p></div>';
+
+    try {
+        const res = await API.post("/api/templates/apply", { template_id: id });
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger">${res.message}</div>`; return; }
+        const d = res.data;
+        let html = `<div class="adv-result-header"><i class="fas fa-check-circle text-success me-2"></i>Template Applied</div>
+            <div class="adv-kv-grid mb-3">
+                <div class="adv-kv"><span>Mapped Columns</span><span>${d.column_mapping ? Object.keys(d.column_mapping).length : "—"}</span></div>
+                <div class="adv-kv"><span>Inferred Task</span><span>${d.inferred_task ?? "—"}</span></div>
+            </div>`;
+        if (d.recommendations) {
+            html += `<div class="adv-section-label">Recommendations</div><div class="adv-llm-box">${renderMarkdown(typeof d.recommendations === "string" ? d.recommendations : JSON.stringify(d.recommendations, null, 2))}</div>`;
+        }
+        area.innerHTML = html;
+        showToast("Template applied successfully", "success");
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+async function templateRecommend() {
+    const area = document.getElementById("templateRecommendResult");
+    area.innerHTML = '<div class="spinner-border spinner-border-sm text-success me-2"></div> Analyzing your data…';
+
+    try {
+        const res = await API.post("/api/templates/recommend", {});
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger small">${res.message}</div>`; return; }
+        const d = res.data;
+        area.innerHTML = `<div class="adv-kv-grid">
+            <div class="adv-kv"><span>Best Match</span><span class="text-success fw-bold">${d.recommended_template ?? d.template_id ?? "—"}</span></div>
+            <div class="adv-kv"><span>Industry</span><span>${d.industry ?? "—"}</span></div>
+            <div class="adv-kv"><span>Confidence</span><span>${d.confidence ? (d.confidence * 100).toFixed(0) + "%" : "—"}</span></div>
+        </div>
+        ${d.reason ? `<p class="small text-muted mt-2">${d.reason}</p>` : ""}`;
+        // Pre-select in dropdown
+        if (d.template_id) {
+            const sel = document.getElementById("templateSelect");
+            if (sel) sel.value = d.template_id;
+        }
+    } catch(e) {
+        area.innerHTML = `<div class="text-danger small">Error: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener("click", e => {
+    if (e.target.closest("#templateRecommendBtn")) templateRecommend();
+    if (e.target.closest("#templateViewBtn"))      templateViewDetails();
+    if (e.target.closest("#templateApplyBtn"))     templateApply();
+});
+
+// ════════════════════════════════════════════════════════
+//  PHASE 5 — MONITORING
+// ════════════════════════════════════════════════════════
+
+let _monitorModelId = null;
+
+async function monitorSetup() {
+    const modelId = document.getElementById("monitorModelId").value.trim();
+    const rawMetrics = document.getElementById("monitorBaselineMetrics").value.trim();
+
+    if (!modelId) { showToast("Enter a model ID/name", "warning"); return; }
+
+    let baselineMetrics = {};
+    if (rawMetrics) {
+        try { baselineMetrics = JSON.parse(rawMetrics); }
+        catch { showToast("Baseline metrics must be valid JSON", "danger"); return; }
+    }
+
+    try {
+        const res = await API.post(`/api/monitoring/setup/${modelId}`, {
+            model_name: modelId, baseline_metrics: baselineMetrics
+        });
+        if (res.status !== "ok") { showToast(res.message, "danger"); return; }
+        _monitorModelId = modelId;
+        showToast(`Monitoring started for "${modelId}"`, "success");
+        document.getElementById("alertRulesArea").innerHTML = `<div class="text-muted small text-center py-2">No rules yet. Create one above.</div>`;
+        document.getElementById("alertsListArea").innerHTML = `<div class="text-muted small text-center py-2">No alerts triggered yet.</div>`;
+    } catch(e) { showToast("Setup failed: " + e.message, "danger"); }
+}
+
+async function monitorCreateAlertRule() {
+    const mid      = _monitorModelId || document.getElementById("monitorModelId").value.trim();
+    const ruleName = document.getElementById("alertRuleName").value.trim();
+    const metric   = document.getElementById("alertMetricName").value.trim();
+    const operator = document.getElementById("alertOperator").value;
+    const threshold= parseFloat(document.getElementById("alertThreshold").value);
+    const severity = document.getElementById("alertSeverity").value;
+
+    if (!mid) { showToast("Initialize monitoring first", "warning"); return; }
+    if (!ruleName || !metric) { showToast("Rule name and metric are required", "warning"); return; }
+
+    try {
+        const res = await API.post("/api/monitoring/alert-rules", {
+            model_id: mid, rule_name: ruleName, metric_name: metric,
+            operator, threshold, severity
+        });
+        if (res.status !== "ok") { showToast(res.message, "danger"); return; }
+        showToast(`Alert rule "${ruleName}" created`, "success");
+        monitorRefreshRules();
+    } catch(e) { showToast("Failed: " + e.message, "danger"); }
+}
+
+async function monitorRefreshRules() {
+    const mid  = _monitorModelId || document.getElementById("monitorModelId").value.trim();
+    const area = document.getElementById("alertRulesArea");
+    if (!mid) return;
+
+    try {
+        const res = await API.get(`/api/monitoring/alert-rules/${mid}`);
+        if (res.status !== "ok") { area.innerHTML = `<div class="text-danger small">${res.message}</div>`; return; }
+        const rules = res.data?.rules || [];
+        if (!rules.length) { area.innerHTML = `<div class="text-muted small text-center py-2">No rules defined yet.</div>`; return; }
+        let html = "";
+        rules.forEach(r => {
+            const sevClass = r.severity === "critical" ? "bg-danger" : r.severity === "info" ? "bg-info" : "bg-warning";
+            html += `<div class="adv-alert-row">
+                <span class="badge ${sevClass}">${r.severity}</span>
+                <span class="fw-500">${r.name}</span>
+                <span class="text-muted small">${r.metric_name} ${r.operator} ${r.threshold}</span>
+                <span class="badge ${r.enabled ? 'bg-success' : 'bg-secondary'}">${r.enabled ? "On" : "Off"}</span>
+            </div>`;
+        });
+        area.innerHTML = html;
+    } catch(e) {}
+}
+
+async function monitorRefreshAlerts() {
+    const mid  = _monitorModelId || document.getElementById("monitorModelId").value.trim();
+    const area = document.getElementById("alertsListArea");
+    if (!mid) return;
+
+    try {
+        const res = await API.get(`/api/monitoring/alerts/${mid}?limit=20`);
+        if (res.status !== "ok") { area.innerHTML = `<div class="text-danger small">${res.message}</div>`; return; }
+        const alerts = res.data?.alerts || [];
+        if (!alerts.length) { area.innerHTML = `<div class="text-muted small text-center py-2">No alerts triggered.</div>`; return; }
+        let html = "";
+        alerts.forEach(a => {
+            const sevClass = a.severity === "critical" ? "text-danger" : a.severity === "info" ? "text-info" : "text-warning";
+            const statusBadge = a.status === "acknowledged" ? `<span class="badge bg-secondary">ACK</span>` :
+                `<button class="btn btn-xs adv-ack-btn" style="font-size:0.65rem;padding:1px 6px" data-alert-id="${a.alert_id}">ACK</button>`;
+            html += `<div class="adv-alert-row">
+                <i class="fas fa-exclamation-circle ${sevClass}"></i>
+                <span class="small">${a.rule_name}</span>
+                <span class="text-muted small">${a.metric_name}=${a.metric_value?.toFixed(3)}</span>
+                ${statusBadge}
+            </div>`;
+        });
+        area.innerHTML = html;
+    } catch(e) {}
+}
+
+async function monitorRunDrift() {
+    const mid       = _monitorModelId || document.getElementById("monitorModelId").value.trim();
+    const threshold = parseFloat(document.getElementById("driftThreshold").value) || 0.05;
+    const area      = document.getElementById("driftResultArea");
+
+    if (!mid) { showToast("Initialize monitoring first", "warning"); return; }
+
+    area.innerHTML = '<div class="spinner-border spinner-border-sm text-warning me-2"></div> Running drift detection…';
+
+    // Use current session data for drift check
+    const dfRes = await API.get("/api/data/current").catch(() => null);
+    if (!dfRes || dfRes.status !== "ok") {
+        area.innerHTML = `<div class="alert alert-warning small">No dataset loaded — load data first.</div>`; return;
+    }
+
+    const data = dfRes.data?.preview_data?.map((row, i) => {
+        const obj = {};
+        dfRes.data.columns.forEach((col, j) => obj[col] = row[j]);
+        return obj;
+    }) || [];
+
+    try {
+        const res = await API.post("/api/monitoring/drift", {
+            model_id: mid, data, threshold
+        });
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger small">${res.message}</div>`; return; }
+        const d = res.data;
+        const driftClass = d.has_drift ? "text-warning" : "text-success";
+        const driftIcon  = d.has_drift ? "fa-exclamation-triangle" : "fa-check-circle";
+        area.innerHTML = `<div class="adv-kv-grid">
+            <div class="adv-kv"><span>Drift Detected</span><span class="${driftClass}"><i class="fas ${driftIcon} me-1"></i>${d.has_drift ? "Yes" : "No"}</span></div>
+            <div class="adv-kv"><span>Drifted Features</span><span>${d.drift_count}</span></div>
+            <div class="adv-kv"><span>Features Monitored</span><span>${d.summary?.total_features_monitored ?? "—"}</span></div>
+            <div class="adv-kv"><span>Drift %</span><span>${d.summary?.drifted_percentage ?? 0}%</span></div>
+        </div>
+        ${d.drifted_features?.length ? `<div class="mt-2 small text-warning">Drifted: ${d.drifted_features.join(", ")}</div>` : ""}`;
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger small">Error: ${e.message}</div>`;
+    }
+}
+
+async function monitorCheckPerf() {
+    const mid         = _monitorModelId || document.getElementById("monitorModelId").value.trim();
+    const rawMetrics  = document.getElementById("perfMetricsInput").value.trim();
+    const threshold   = parseFloat(document.getElementById("perfDegradationPct").value) || 5;
+    const area        = document.getElementById("perfResultArea");
+
+    if (!mid) { showToast("Initialize monitoring first", "warning"); return; }
+    if (!rawMetrics) { showToast("Enter current metrics JSON", "warning"); return; }
+
+    let metrics = {};
+    try { metrics = JSON.parse(rawMetrics); }
+    catch { showToast("Metrics must be valid JSON", "danger"); return; }
+
+    area.innerHTML = '<div class="spinner-border spinner-border-sm text-info me-2"></div> Checking performance…';
+
+    try {
+        const res = await API.post("/api/monitoring/check-performance", {
+            model_id: mid, metrics, degradation_threshold_pct: threshold
+        });
+        if (res.status !== "ok") { area.innerHTML = `<div class="alert alert-danger small">${res.message}</div>`; return; }
+        const d = res.data;
+        const degraded = d.has_degradation;
+        area.innerHTML = `<div class="adv-kv-grid">
+            <div class="adv-kv"><span>Degradation</span><span class="${degraded ? "text-danger" : "text-success"}"><i class="fas ${degraded ? "fa-arrow-down" : "fa-check"} me-1"></i>${degraded ? "Yes" : "No"}</span></div>
+            <div class="adv-kv"><span>Degraded Metrics</span><span>${d.summary?.degraded_count ?? 0}</span></div>
+            <div class="adv-kv"><span>Avg Degradation</span><span>${d.summary?.avg_degradation_pct ?? 0}%</span></div>
+        </div>
+        ${d.degraded_metrics?.length ? `<div class="mt-2 small text-danger">Degraded: ${d.degraded_metrics.join(", ")}</div>` : ""}`;
+        if (degraded) monitorRefreshAlerts();
+    } catch(e) {
+        area.innerHTML = `<div class="alert alert-danger small">Error: ${e.message}</div>`;
+    }
+}
+
+document.addEventListener("click", async e => {
+    if (e.target.closest("#monitorSetupBtn"))      monitorSetup();
+    if (e.target.closest("#alertCreateBtn"))       monitorCreateAlertRule();
+    if (e.target.closest("#alertRulesRefreshBtn")) monitorRefreshRules();
+    if (e.target.closest("#alertsRefreshBtn"))     monitorRefreshAlerts();
+    if (e.target.closest("#driftDetectBtn"))       monitorRunDrift();
+    if (e.target.closest("#perfCheckBtn"))         monitorCheckPerf();
+
+    // Acknowledge alert inline
+    const ackBtn = e.target.closest(".adv-ack-btn");
+    if (ackBtn) {
+        const mid     = _monitorModelId || document.getElementById("monitorModelId").value.trim();
+        const alertId = ackBtn.dataset.alertId;
+        if (mid && alertId) {
+            await API.post(`/api/monitoring/alerts/${mid}/${alertId}/acknowledge`, { acknowledged_by: "user" }).catch(() => {});
+            monitorRefreshAlerts();
+        }
+    }
+});
 
 // ════════════════════════════════════════════════════════
 //  INIT

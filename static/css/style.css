@@ -1781,3 +1781,28 @@ body {
     line-height: 1.4;
 }
 
+/* ══════════════════════════════════════════════
+   ADVANCED MODULES — shared banner & layout
+══════════════════════════════════════════════ */
+.adv-module-banner {
+    padding: 12px 20px;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent, #6366f1);
+    background: rgba(99, 102, 241, 0.08);
+    color: #a5b4fc;
+    font-size: 0.88rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Ensure full-width cards inside advanced module sections */
+#sec-timeseries .col-12 > .card,
+#sec-anomaly   .col-12 > .card,
+#sec-nlp       .col-12 > .card,
+#sec-vision    .col-12 > .card,
+#sec-agents    .col-12 > .card,
+#sec-graph     .col-12 > .card,
+#sec-templates .col-12 > .card,
+#sec-monitoring .col-12 > .card {
+    width: 100%;
+}
