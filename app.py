@@ -48,6 +48,8 @@ from ml_engine.vision_engine import VisionEngine
 from ml_engine.ai_agents import AgentOrchestrator
 from ml_engine.knowledge_graph import KnowledgeGraphEngine
 from ml_engine.industry_templates import IndustryTemplates
+from ml_engine.monitoring_service import MonitoringService
+from ml_engine.alert_engine import AlertEngine
 from llm_engine.analyzer import LLMAnalyzer
 
 logger = get_logger("app")
@@ -101,6 +103,10 @@ deployment_service = ModelDeploymentService(model_registry, prediction_logger)
 
 # Initialize Phase 4: AI agents orchestrator
 agent_orchestrator = AgentOrchestrator(LLMAnalyzer)
+
+# Initialize Phase 5: Monitoring and alerting
+monitoring_service = MonitoringService()
+alert_engine = AlertEngine()
 
 logger.info("Flask app initialised: %s v%s (debug=%s)",
             Config.APP_NAME, Config.APP_VERSION, Config.DEBUG)
@@ -4493,6 +4499,332 @@ def templates_recommend():
         return _ok(result)
     except Exception as exc:
         logger.exception("templates_recommend error")
+        return _err(str(exc))
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Phase 5: Real-Time Monitoring & Alerts
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/monitoring/setup/<model_id>", methods=["POST"])
+def monitoring_setup(model_id):
+    """Initialize monitoring for a trained model."""
+    try:
+        body = request.json or {}
+        model_name = body.get("model_name", model_id)
+        baseline_df_cols = body.get("baseline_features", [])
+        baseline_metrics = body.get("baseline_metrics", {})
+        
+        # Create monitoring session
+        session_id = f"monitor_{model_id}_{int(time.time())}"
+        monitor_session = monitoring_service.create_session(
+            session_id=session_id,
+            model_name=model_name,
+            baseline_metrics=baseline_metrics,
+        )
+        
+        # Create alert session
+        alert_session = alert_engine.create_session(
+            session_id=session_id,
+            model_name=model_name,
+        )
+        
+        # Store sessions in data store
+        store = _store()
+        if "monitoring" not in store:
+            store["monitoring"] = {}
+        store["monitoring"][model_id] = {
+            "session_id": session_id,
+            "monitor_session": monitor_session,
+            "alert_session": alert_session,
+            "created_at": datetime.datetime.now().isoformat(),
+        }
+        
+        logger.info("Monitoring setup for model %s (session=%s)", model_id, session_id)
+        return _ok({
+            "session_id": session_id,
+            "model_id": model_id,
+            "model_name": model_name,
+            "monitoring_started": True,
+        }, "Monitoring initialized")
+    except Exception as exc:
+        logger.exception("monitoring_setup error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/drift", methods=["POST"])
+def monitoring_detect_drift():
+    """Detect data drift and prediction drift."""
+    try:
+        body = request.json or {}
+        model_id = body.get("model_id", "default")
+        new_data = body.get("data")
+        drift_threshold = body.get("threshold", 0.05)
+        
+        if not new_data:
+            return _err("No data provided for drift detection")
+        
+        # Get monitoring session
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        monitor_session = monitor_info["monitor_session"]
+        
+        # Convert data to DataFrame
+        df = pd.DataFrame(new_data)
+        
+        # Detect drift
+        drift_report = monitoring_service.detect_drift(
+            session_id=session_id,
+            new_df=df,
+            drift_threshold=drift_threshold,
+        )
+        
+        if "error" in drift_report:
+            return _err(drift_report["error"])
+        
+        # Trigger alerts if drift detected
+        if drift_report.get("has_drift"):
+            alert_metrics = {
+                "drift_count": drift_report["drift_count"],
+                "drifted_percentage": drift_report["summary"].get("drifted_percentage", 0),
+            }
+            alerts = alert_engine.evaluate(session_id, alert_metrics)
+            drift_report["triggered_alerts"] = alerts.get("triggered_alerts", [])
+        
+        logger.info("Drift detection for model %s: %d drifted features",
+                   model_id, drift_report.get("drift_count", 0))
+        return _ok(drift_report, "Drift detection complete")
+    except Exception as exc:
+        logger.exception("monitoring_detect_drift error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/metrics/<model_id>", methods=["GET"])
+def monitoring_get_metrics(model_id):
+    """Get current performance metrics for a model."""
+    try:
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        
+        # Get monitoring summary
+        summary = monitoring_service.get_monitoring_summary(session_id)
+        
+        if "error" in summary:
+            return _err(summary["error"])
+        
+        return _ok(summary, "Metrics retrieved")
+    except Exception as exc:
+        logger.exception("monitoring_get_metrics error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/check-performance", methods=["POST"])
+def monitoring_check_performance():
+    """Check if performance metrics have degraded."""
+    try:
+        body = request.json or {}
+        model_id = body.get("model_id", "default")
+        current_metrics = body.get("metrics", {})
+        threshold_pct = body.get("degradation_threshold_pct", 5.0)
+        
+        if not current_metrics:
+            return _err("No metrics provided")
+        
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        
+        # Check performance
+        perf_report = monitoring_service.check_performance(
+            session_id=session_id,
+            current_metrics=current_metrics,
+            degradation_threshold_pct=threshold_pct,
+        )
+        
+        if "error" in perf_report:
+            return _err(perf_report["error"])
+        
+        # Trigger alerts if degradation detected
+        if perf_report.get("has_degradation"):
+            alert_metrics = {
+                "degraded_metrics": perf_report["degraded_metrics"].__len__(),
+                "avg_degradation": perf_report["summary"].get("avg_degradation_pct", 0),
+            }
+            alerts = alert_engine.evaluate(session_id, alert_metrics)
+            perf_report["triggered_alerts"] = alerts.get("triggered_alerts", [])
+        
+        logger.info("Performance check for model %s: %d degraded metrics",
+                   model_id, perf_report.get("degraded_metrics", []).__len__())
+        return _ok(perf_report, "Performance check complete")
+    except Exception as exc:
+        logger.exception("monitoring_check_performance error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/alert-rules", methods=["POST"])
+def monitoring_create_alert_rule():
+    """Create a new alert rule."""
+    try:
+        body = request.json or {}
+        model_id = body.get("model_id", "default")
+        rule_name: str = body.get("rule_name", "")
+        metric_name: str = body.get("metric_name", "")
+        operator = body.get("operator", ">")
+        threshold = body.get("threshold", 0.0)
+        severity = body.get("severity", "warning")
+        description = body.get("description", "")
+        
+        if not all([rule_name, metric_name]):
+            return _err("Missing required fields: rule_name, metric_name")
+        
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        
+        # Create rule
+        result = alert_engine.create_rule(
+            session_id=session_id,
+            rule_name=rule_name,
+            metric_name=metric_name,
+            operator=operator,
+            threshold=threshold,
+            severity=severity,
+            description=description,
+        )
+        
+        if "error" in result:
+            return _err(result["error"])
+        
+        logger.info("Alert rule created: %s (rule_id=%s)", rule_name, result.get("rule_id"))
+        return _ok(result, "Alert rule created")
+    except Exception as exc:
+        logger.exception("monitoring_create_alert_rule error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/alert-rules/<model_id>", methods=["GET"])
+def monitoring_list_alert_rules(model_id):
+    """List all alert rules for a model."""
+    try:
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        
+        # Get rules
+        rules = alert_engine.get_rules(session_id)
+        
+        if "error" in rules:
+            return _err(rules["error"])
+        
+        return _ok(rules, "Alert rules retrieved")
+    except Exception as exc:
+        logger.exception("monitoring_list_alert_rules error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/alerts/<model_id>", methods=["GET"])
+def monitoring_get_alerts(model_id):
+    """Get recent alerts for a model."""
+    try:
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        limit = request.args.get("limit", 100, type=int)
+        status = request.args.get("status")
+        
+        # Get alert history
+        history = alert_engine.get_alert_history(
+            session_id=session_id,
+            limit=limit,
+            status_filter=status,
+        )
+        
+        if "error" in history:
+            return _err(history["error"])
+        
+        return _ok(history, "Alerts retrieved")
+    except Exception as exc:
+        logger.exception("monitoring_get_alerts error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/alerts/<model_id>/<alert_id>/acknowledge", methods=["POST"])
+def monitoring_acknowledge_alert(model_id, alert_id):
+    """Acknowledge an alert."""
+    try:
+        body = request.json or {}
+        acknowledged_by = body.get("acknowledged_by", "user")
+        
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        
+        # Acknowledge alert
+        result = alert_engine.acknowledge_alert(
+            session_id=session_id,
+            alert_id=alert_id,
+            acknowledged_by=acknowledged_by,
+        )
+        
+        if "error" in result:
+            return _err(result["error"])
+        
+        logger.info("Alert acknowledged: %s (model=%s)", alert_id, model_id)
+        return _ok(result, "Alert acknowledged")
+    except Exception as exc:
+        logger.exception("monitoring_acknowledge_alert error")
+        return _err(str(exc))
+
+
+@app.route("/api/monitoring/summary/<model_id>", methods=["GET"])
+def monitoring_get_summary(model_id):
+    """Get comprehensive monitoring summary for a model."""
+    try:
+        store = _store()
+        monitor_info = store.get("monitoring", {}).get(model_id)
+        if not monitor_info:
+            return _err(f"No monitoring session for model {model_id}")
+        
+        session_id = monitor_info["session_id"]
+        
+        # Get monitoring summary
+        monitor_summary = monitoring_service.get_monitoring_summary(session_id)
+        
+        # Get alert summary
+        alert_summary = alert_engine.get_alert_summary(session_id)
+        
+        combined = {
+            "monitoring": monitor_summary,
+            "alerts": alert_summary,
+            "last_updated": datetime.datetime.now().isoformat(),
+        }
+        
+        return _ok(combined, "Monitoring summary retrieved")
+    except Exception as exc:
+        logger.exception("monitoring_get_summary error")
         return _err(str(exc))
 
 

@@ -18,6 +18,8 @@ from .vision_engine import VisionEngine
 from .ai_agents import AgentOrchestrator
 from .knowledge_graph import KnowledgeGraphEngine
 from .industry_templates import IndustryTemplates
+from .monitoring_service import MonitoringService
+from .alert_engine import AlertEngine
 
 __all__ = [
     "DataLoader",
@@ -39,4 +41,7 @@ __all__ = [
     "AgentOrchestrator",
     "KnowledgeGraphEngine",
     "IndustryTemplates",
+    # Phase 5
+    "MonitoringService",
+    "AlertEngine",
 ]
