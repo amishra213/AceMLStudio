@@ -176,7 +176,7 @@ class DataQualityAnalyzer:
                     })
                 # Check if datetime hidden as string
                 try:
-                    pd.to_datetime(non_null.head(50), errors="raise")  # type: ignore
+                    pd.to_datetime(non_null.head(50), errors="raise", format="mixed")  # type: ignore
                     issues.append({"column": col, "issue": "Likely datetime stored as string"})
                 except Exception:
                     pass

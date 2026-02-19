@@ -20,7 +20,7 @@ from flask import Flask, request, jsonify, render_template, session
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 
-from logging_config import setup_logging, get_logger, get_recent_logs
+from logging_config import setup_logging, get_logger, get_recent_logs, task_event, get_pipeline_log, clear_pipeline_log
 
 # Initialise logging BEFORE anything else
 setup_logging()
@@ -504,16 +504,27 @@ def _load_and_store(filepath: str, original_filename: str) -> dict:
         logger.info("Loading file: %s (%.1f MB)", original_filename, file_mb)
 
         # Load the DataFrame
-        try:
-            df = DataLoader.load(filepath)
-        except Exception as e:
-            logger.error("DataLoader.load failed for %s: %s", original_filename, e, exc_info=True)
-            raise ValueError(f"Failed to parse file: {str(e)}")
-        
-        elapsed = time.time() - t0
-        mem_mb = df.memory_usage(deep=True).sum() / (1024**2)
-        logger.info("File loaded in %.2fs — shape=%s, mem=%.1f MB",
-                    elapsed, df.shape, mem_mb)
+        with task_event(_sid(), "file_upload", inputs={
+            "filename": original_filename,
+            "file_size_mb": round(file_mb, 2),
+        }) as te:
+            try:
+                df = DataLoader.load(filepath)
+            except Exception as e:
+                logger.error("DataLoader.load failed for %s: %s", original_filename, e, exc_info=True)
+                raise ValueError(f"Failed to parse file: {str(e)}")
+            
+            elapsed = time.time() - t0
+            mem_mb = df.memory_usage(deep=True).sum() / (1024**2)
+            te["outputs"] = {
+                "rows": int(df.shape[0]),
+                "columns": int(df.shape[1]),
+                "memory_mb": round(mem_mb, 2),
+                "column_names": list(df.columns[:20]),
+                "dtypes": {col: str(dtype) for col, dtype in list(df.dtypes.items())[:20]},
+            }
+            logger.info("File loaded in %.2fs — shape=%s, mem=%.1f MB",
+                        elapsed, df.shape, mem_mb)
 
         store = _store()
         sid = _sid()
@@ -886,8 +897,19 @@ def data_quality():
         
         t0 = time.time()
         try:
-            analyzer = DataQualityAnalyzer(df, target_column=target)
-            report = analyzer.full_report()
+            with task_event(_sid(), "data_quality", inputs={
+                "rows": int(df.shape[0]),
+                "columns": int(df.shape[1]),
+                "target": target,
+            }) as te:
+                analyzer = DataQualityAnalyzer(df, target_column=target)
+                report = analyzer.full_report()
+                te["outputs"] = {
+                    "quality_score": report.get("quality_score"),
+                    "n_issues": len(report.get("issues", [])),
+                    "missing_pct": report.get("summary", {}).get("missing_percentage"),
+                    "duplicate_rows": report.get("summary", {}).get("duplicate_rows"),
+                }
         except Exception as e:
             logger.error("Quality analysis failed: %s", e, exc_info=True)
             return _err(f"Quality analysis failed: {str(e)}", 500)
@@ -923,7 +945,20 @@ def data_clean():
         t0 = time.time()
         
         try:
-            cleaned, log = DataCleaner.apply_operations(df, operations)
+            with task_event(_sid(), "data_cleaning", inputs={
+                "rows_before": int(df.shape[0]),
+                "cols_before": int(df.shape[1]),
+                "n_operations": len(operations),
+                "operations": [op.get("action") for op in operations],
+            }) as te:
+                cleaned, log = DataCleaner.apply_operations(df, operations)
+                te["outputs"] = {
+                    "rows_after": int(cleaned.shape[0]),
+                    "cols_after": int(cleaned.shape[1]),
+                    "rows_removed": int(df.shape[0] - cleaned.shape[0]),
+                    "cols_removed": int(df.shape[1] - cleaned.shape[1]),
+                    "log": log,
+                }
         except Exception as e:
             logger.error("Data cleaning failed: %s", e, exc_info=True)
             return _err(f"Cleaning failed: {str(e)}", 500)
@@ -969,7 +1004,18 @@ def feature_engineer():
         t0 = time.time()
         
         try:
-            result, log = FeatureEngineer.apply_operations(df, operations)
+            with task_event(_sid(), "feature_engineering", inputs={
+                "cols_before": int(df.shape[1]),
+                "rows": int(df.shape[0]),
+                "n_operations": len(operations),
+                "operations": [op.get("action") for op in operations],
+            }) as te:
+                result, log = FeatureEngineer.apply_operations(df, operations)
+                te["outputs"] = {
+                    "cols_after": int(result.shape[1]),
+                    "new_features": int(result.shape[1] - df.shape[1]),
+                    "log": log,
+                }
         except Exception as e:
             logger.error("Feature engineering failed: %s", e, exc_info=True)
             return _err(f"Feature engineering failed: {str(e)}", 500)
@@ -1011,7 +1057,22 @@ def transform():
 
     logger.info("Applying %d transform operations, shape=%s", len(operations), df.shape)
     t0 = time.time()
-    result, log = DataTransformer.apply_operations(df, operations)
+    try:
+        with task_event(_sid(), "transformations", inputs={
+            "rows": int(df.shape[0]),
+            "cols_before": int(df.shape[1]),
+            "n_operations": len(operations),
+            "operations": [op.get("action") for op in operations],
+        }) as te:
+            result, log = DataTransformer.apply_operations(df, operations)
+            te["outputs"] = {
+                "cols_after": int(result.shape[1]),
+                "new_cols": int(result.shape[1] - df.shape[1]),
+                "log": log,
+            }
+    except Exception as e:
+        logger.error("Transformation failed: %s", e, exc_info=True)
+        return _err(f"Transformation failed: {str(e)}", 500)
     logger.info("Transformation complete in %.2fs — shape=%s", time.time() - t0, result.shape)
     for entry in log:
         logger.debug("  Transform log: %s", entry)
@@ -1035,20 +1096,31 @@ def reduce_dimensions():
     try:
         logger.info("Dimensionality reduction: method=%s, params=%s, shape=%s", method, params, df.shape)
         t0 = time.time()
-        if method == "pca":
-            result, info = DimensionalityReducer.pca_reduce(df, **params)
-        elif method == "variance_threshold":
-            result, info = DimensionalityReducer.variance_threshold(df, **params)
-        elif method == "correlation_filter":
-            result, info = DimensionalityReducer.correlation_filter(df, **params)
-        elif method == "feature_importance":
-            target = params.pop("target", _store().get("target"))
-            task = params.pop("task", _store().get("task", "classification"))
-            if not target:
-                return _err("Target column required for feature importance")
-            result, info = DimensionalityReducer.feature_importance_selection(df, target, task, **params)
-        else:
-            return _err(f"Unknown method: {method}")
+        with task_event(_sid(), "dimensionality_reduction", inputs={
+            "method": method,
+            "cols_before": int(df.shape[1]),
+            "rows": int(df.shape[0]),
+            "params": params,
+        }) as te:
+            if method == "pca":
+                result, info = DimensionalityReducer.pca_reduce(df, **params)
+            elif method == "variance_threshold":
+                result, info = DimensionalityReducer.variance_threshold(df, **params)
+            elif method == "correlation_filter":
+                result, info = DimensionalityReducer.correlation_filter(df, **params)
+            elif method == "feature_importance":
+                target = params.pop("target", _store().get("target"))
+                task = params.pop("task", _store().get("task", "classification"))
+                if not target:
+                    return _err("Target column required for feature importance")
+                result, info = DimensionalityReducer.feature_importance_selection(df, target, task, **params)
+            else:
+                return _err(f"Unknown method: {method}")
+            te["outputs"] = {
+                "cols_after": int(result.shape[1]),
+                "cols_removed": int(df.shape[1] - result.shape[1]),
+                "reduction_info": info,
+            }
 
         logger.info("Dimensionality reduction complete in %.2fs — cols %d→%d",
                     time.time() - t0, df.shape[1], result.shape[1])
@@ -1483,10 +1555,21 @@ def train_model():
         # Unsupervised: train on full dataset, no splitting
         logger.info("Unsupervised training - using full dataset (no train/val/test split)")
         
-        results = ModelTrainer.train_multiple(
-            model_keys, task,
-            X, None, None, None  # No y, no validation needed
-        )
+        with task_event(_sid(), "model_training", inputs={
+            "task": task,
+            "models": model_keys,
+            "n_samples": int(X.shape[0]),
+            "n_features": int(X.shape[1]),
+        }) as te:
+            results = ModelTrainer.train_multiple(
+                model_keys, task,
+                X, None, None, None  # No y, no validation needed
+            )
+            te["outputs"] = {
+                "models_trained": [r["model_key"] for r in results if r.get("status") == "success"],
+                "models_failed": [r["model_key"] for r in results if r.get("status") == "error"],
+                "best_silhouette": max((r.get("silhouette_score", 0) for r in results if r.get("status") == "success"), default=None),
+            }
         
         duration = time.time() - t0
         
@@ -1525,11 +1608,27 @@ def train_model():
                      split['split_info']['val_size'],
                      split['split_info']['test_size'])
 
-        results = ModelTrainer.train_multiple(
-            model_keys, task,
-            split["X_train"], split["y_train"],
-            split["X_val"], split["y_val"]
-        )
+        with task_event(_sid(), "model_training", inputs={
+            "task": task,
+            "target": target,
+            "models": model_keys,
+            "n_train": int(split['split_info']['train_size']),
+            "n_val": int(split['split_info']['val_size']),
+            "n_test": int(split['split_info']['test_size']),
+            "n_features": int(X.shape[1]),
+        }) as te:
+            results = ModelTrainer.train_multiple(
+                model_keys, task,
+                split["X_train"], split["y_train"],
+                split["X_val"], split["y_val"]
+            )
+            successful = [r for r in results if r.get("status") == "success"]
+            te["outputs"] = {
+                "models_trained": [r["model_key"] for r in successful],
+                "models_failed": [r["model_key"] for r in results if r.get("status") == "error"],
+                "best_val_score": max((r.get("val_score", 0) for r in successful), default=None),
+                "best_model": max(successful, key=lambda r: r.get("val_score", 0))["model_key"] if successful else None,
+            }
     
     duration = time.time() - t0
 
@@ -1992,9 +2091,22 @@ def evaluate_model():
             results[key] = {"error": "Model not available"}
             continue
             
-        t0 = time.time()
-        eval_result = ModelEvaluator.evaluate(model, X, y, task, feature_names)
-        results[key] = eval_result
+        with task_event(_sid(), "model_evaluation", inputs={
+            "model_key": key,
+            "task": task,
+            "dataset": dataset,
+            "n_samples": int(len(X)),
+            "n_features": int(X.shape[1]) if hasattr(X, "shape") else None,
+        }) as te:
+            t0 = time.time()
+            eval_result = ModelEvaluator.evaluate(model, X, y, task, feature_names)
+            results[key] = eval_result
+            metrics = eval_result.get("metrics", {})
+            te["outputs"] = {
+                "metrics": {k: round(float(v), 4) if isinstance(v, float) else v
+                            for k, v in metrics.items() if not isinstance(v, (list, dict))},
+                "duration_sec": round(time.time() - t0, 3),
+            }
         
         # Store evaluation data in the model dict for visualization endpoints
         if isinstance(model_data, dict):
@@ -2213,14 +2325,28 @@ def tune_model():
 
     try:
         t0 = time.time()
-        if method == "grid_search":
-            result = HyperparameterTuner.grid_search(model_key, task, X, y, cv=cv)
-        elif method == "random_search":
-            result = HyperparameterTuner.random_search(model_key, task, X, y, n_iter=n_iter, cv=cv)
-        elif method == "optuna":
-            result = HyperparameterTuner.optuna_search(model_key, task, X, y, n_trials=n_iter, cv=cv)
-        else:
-            return _err(f"Unknown tuning method: {method}")
+        with task_event(_sid(), "hyperparameter_tuning", inputs={
+            "model_key": model_key,
+            "task": task,
+            "method": method,
+            "n_iter": n_iter,
+            "cv_folds": cv,
+            "n_samples": int(X.shape[0]),
+            "n_features": int(X.shape[1]),
+        }) as te:
+            if method == "grid_search":
+                result = HyperparameterTuner.grid_search(model_key, task, X, y, cv=cv)
+            elif method == "random_search":
+                result = HyperparameterTuner.random_search(model_key, task, X, y, n_iter=n_iter, cv=cv)
+            elif method == "optuna":
+                result = HyperparameterTuner.optuna_search(model_key, task, X, y, n_trials=n_iter, cv=cv)
+            else:
+                return _err(f"Unknown tuning method: {method}")
+            te["outputs"] = {
+                "best_score": result.get("best_score"),
+                "best_params": result.get("best_params"),
+                "n_trials": result.get("n_iter_or_trials", n_iter),
+            }
 
         logger.info("Tuning complete in %.2fs — best_score=%.4f, best_params=%s",
                     time.time() - t0, result.get('best_score', 0), result.get('best_params'))
@@ -2813,6 +2939,11 @@ def chat():
     if include.get("logs"):
         context["recent_logs"] = get_recent_logs(n=30, min_level="INFO")
 
+    # ── Pipeline task log (always injected for richer LLM context) ──
+    pipeline_events = get_pipeline_log(sid, n=20)
+    if pipeline_events:
+        context["pipeline_log"] = pipeline_events
+
     if include.get("tuning") and store.get("split"):
         # Gather info about trained models and any tuning results
         tuning_ctx: dict = {}
@@ -2878,6 +3009,15 @@ def recent_logs():
     return _ok(get_recent_logs(n=n, min_level=level))
 
 
+@app.route("/api/pipeline/log")
+def pipeline_log_endpoint():
+    """Return the structured per-session pipeline task log for display in the chat panel."""
+    n = request.args.get("n", 30, type=int)
+    sid = _sid()
+    events = get_pipeline_log(sid, n=n)
+    return _ok({"events": events, "count": len(events)})
+
+
 # ────────────────────────────────────────────────────────────────────
 #  Reset
 # ────────────────────────────────────────────────────────────────────
@@ -2887,6 +3027,7 @@ def reset_session():
     DATA_STORE.pop(sid, None)
     CHAT_HISTORY.pop(sid, None)
     WORKFLOW_STORE.pop(sid, None)
+    clear_pipeline_log(sid)
     logger.info("Session reset: %s", sid)
     return _ok(message="Session reset")
 
@@ -4870,5 +5011,11 @@ if __name__ == "__main__":
     print(f"  http://{host}:{port}")
     print(f"  Environment: {'Container' if is_container else 'Local'}")
     print(f"{'='*50}\n")
-    app.run(debug=Config.DEBUG, host=host, port=port)
+
+    # Use the 'watchdog' reloader on Windows to avoid the WinError 10038 race
+    # condition that occurs with the default 'stat' reloader when files are
+    # saved while a long-running request (e.g. tuning) is in progress.
+    # Falls back gracefully to 'stat' if watchdog is not installed.
+    reloader = "watchdog" if not is_container else "stat"
+    app.run(debug=Config.DEBUG, host=host, port=port, reloader_type=reloader)
 

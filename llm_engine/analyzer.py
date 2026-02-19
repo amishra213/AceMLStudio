@@ -334,17 +334,91 @@ class LLMAnalyzer:
         "(Upload Data, Data Quality, Data Cleaning, Feature Engineering, Transformations, "
         "Reduce Dimensions, Train Models, Evaluation, Tuning, Experiments, AI Insights).\n"
         "• Use bullet points and short paragraphs for readability.\n"
+        "• If a **Pipeline Log** is provided below, analyse it carefully:\n"
+        "  - Mention specific numbers (rows removed, features added, scores achieved).\n"
+        "  - Flag any failed tasks (status='error') and explain what went wrong and how to fix it.\n"
+        "  - Trace the user's pipeline journey step-by-step and identify gaps or improvements.\n"
+        "  - Relate the pipeline_log to the user's question — don't just repeat the log.\n"
         "• If context about the user's dataset, logs, tuning parameters, or evaluation results "
         "is provided below, reference it specifically to give personalised advice.\n"
         "• Always suggest a clear next step the user can take.\n"
     )
+
+    # Friendly display names for task identifiers used in pipeline_log
+    _TASK_LABELS: dict[str, str] = {
+        "file_upload": "[Upload] File Upload",
+        "data_quality": "[Quality] Data Quality Analysis",
+        "data_cleaning": "[Clean] Data Cleaning",
+        "feature_engineering": "[FE] Feature Engineering",
+        "transformations": "[Transform] Transformations",
+        "dimensionality_reduction": "[Reduce] Dimensionality Reduction",
+        "model_training": "[Train] Model Training",
+        "model_evaluation": "[Eval] Model Evaluation",
+        "hyperparameter_tuning": "[Tune] Hyperparameter Tuning",
+        "cross_validation": "[CV] Cross-Validation",
+    }
+
+    @classmethod
+    def _summarise_pipeline_log(cls, events: list[dict]) -> str:
+        """
+        Convert structured pipeline task events into a compact, human-readable
+        markdown summary that can be embedded in the LLM system prompt without
+        consuming too many tokens.
+        """
+        if not events:
+            return ""
+        lines = ["**Pipeline Progress (most recent tasks):**\n"]
+        for ev in events:
+            label = cls._TASK_LABELS.get(ev.get("task", ""), ev.get("task", "task"))
+            status = ev.get("status", "?")
+            icon = "[OK]" if status == "success" else ("[ERR]" if status == "error" else "[...]")
+            ts = ev.get("started_at", "")[:16].replace("T", " ")
+            dur = f"{ev.get('duration_sec', '?')}s" if ev.get("duration_sec") is not None else ""
+            line = f"{icon} **{label}** ({ts}, {dur})"
+            # Append key input/output facts as brief inline notes
+            inp = ev.get("inputs", {})
+            out = ev.get("outputs", {})
+            facts = []
+            # inputs
+            for k in ("rows", "rows_before", "cols_before", "n_samples", "n_features",
+                      "n_train", "filename", "target", "models", "method"):
+                if k in inp:
+                    v = inp[k]
+                    if isinstance(v, list):
+                        facts.append(f"{k}=[{', '.join(str(x) for x in v[:3])}{'…' if len(v) > 3 else ''}]")
+                    else:
+                        facts.append(f"{k}={v}")
+            # outputs
+            for k in ("rows_after", "rows_removed", "cols_after", "new_features", "cols_removed",
+                      "quality_score", "n_issues", "best_val_score", "best_model",
+                      "models_trained", "models_failed", "best_silhouette", "best_score"):
+                if k in out:
+                    v = out[k]
+                    if isinstance(v, list):
+                        facts.append(f"{k}=[{', '.join(str(x) for x in v[:3])}{'…' if len(v) > 3 else ''}]")
+                    elif v is not None:
+                        facts.append(f"{k}={v}")
+            # metrics summary
+            if "metrics" in out and isinstance(out["metrics"], dict):
+                for mk, mv in list(out["metrics"].items())[:3]:
+                    if mv is not None:
+                        facts.append(f"{mk}={mv}")
+            if facts:
+                line += "  =>  " + ", ".join(facts)
+            if status == "error" and ev.get("error"):
+                line += f"\n    [!] Error: {ev['error'][:200]}"
+            if ev.get("warnings"):
+                for w in ev["warnings"][:2]:
+                    line += f"\n    [!] Warning: {w}"
+            lines.append(line)
+        return "\n".join(lines)
 
     @classmethod
     def chat(cls, messages: list[dict], context: dict | None = None) -> str:
         """
         Multi-turn chat.  *messages* is a list of {"role": "user"|"assistant", "content": str}.
         *context* is an optional dict with keys like data_summary, recent_logs,
-        tuning_params, evaluation_results, user_context.
+        pipeline_log, tuning_params, evaluation_results, user_context.
         """
         logger.info(
             "LLM chat: %d messages, context_keys=%s",
@@ -354,15 +428,23 @@ class LLMAnalyzer:
 
         # Build a system message enriched with whatever context the caller included.
         system = cls.CHAT_SYSTEM_PROMPT
+
         if context:
-            system += "\n--- SESSION CONTEXT ---\n"
-            for key, value in context.items():
-                if value:
-                    system += f"\n**{key.replace('_', ' ').title()}:**\n"
-                    if isinstance(value, (dict, list)):
-                        system += f"```json\n{json.dumps(value, indent=2, default=str)}\n```\n"
-                    else:
-                        system += f"{value}\n"
+            # ── Structured pipeline log (highest priority — always render first) ──
+            pipeline_events = context.pop("pipeline_log", None)
+            if pipeline_events:
+                system += "\n\n--- PIPELINE LOG ---\n"
+                system += cls._summarise_pipeline_log(pipeline_events)
+
+            if context:
+                system += "\n\n--- SESSION CONTEXT ---\n"
+                for key, value in context.items():
+                    if value:
+                        system += f"\n**{key.replace('_', ' ').title()}:**\n"
+                        if isinstance(value, (dict, list)):
+                            system += f"```json\n{json.dumps(value, indent=2, default=str)}\n```\n"
+                        else:
+                            system += f"{value}\n"
 
         provider = Config.LLM_PROVIDER.lower()
         logger.debug("Chat provider=%s, system_len=%d", provider, len(system))

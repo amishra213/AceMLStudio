@@ -4,6 +4,7 @@
 # Web Framework
 flask>=3.0.0
 flask-cors>=4.0.0
+watchdog>=4.0.0          # Better file-change reloader on Windows (avoids WinError 10038)
 
 # Data Manipulation
 pandas>=2.1.0
