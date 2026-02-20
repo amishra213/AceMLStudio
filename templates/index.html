@@ -36,6 +36,10 @@
 
                 <!-- ── STEP 1: DATA PREPARATION ── -->
                 <div class="nav-group-label">① DATA PREPARATION</div>
+                <a class="nav-item" data-section="connectors" href="#" title="Connect to AWS S3, Azure Blob, GCS or a database to load data directly">
+                    <i class="fas fa-plug"></i><span>Cloud &amp; DB</span>
+                    <span class="badge bg-warning ms-auto" style="font-size:0.55rem;padding:2px 5px;">NEW</span>
+                </a>
                 <a class="nav-item" data-section="upload" href="#" title="Upload and configure your dataset">
                     <i class="fas fa-cloud-upload-alt"></i><span>Upload Data</span>
                 </a>
@@ -259,6 +263,344 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </section>
+
+                <!-- ══════════ CLOUD & DB CONNECTORS ══════════ -->
+                <section class="content-section" id="sec-connectors">
+                    <div class="section-header-with-help">
+                        <h6><i class="fas fa-plug me-2"></i>Cloud Storage &amp; Database Connectors</h6>
+                        <button class="help-toggle-btn" data-help="connectors-help"><i class="fas fa-question-circle"></i>What does this do?</button>
+                    </div>
+                    <div class="help-panel" id="connectors-help">
+                        <div class="help-panel-header"><i class="fas fa-info-circle"></i><span>Cloud &amp; Database Connectors</span></div>
+                        <div class="help-panel-content">
+                            <p><strong>What is this?</strong> Load datasets directly from cloud storage or relational databases instead of uploading a file.</p>
+                            <ul>
+                                <li><strong>AWS S3</strong> – Browse buckets and load CSV/Excel/Parquet files from Amazon S3 or S3-compatible storage (MinIO, etc.)</li>
+                                <li><strong>Azure Blob</strong> – Connect with a connection string or account key and download blobs from any container.</li>
+                                <li><strong>Google Cloud Storage</strong> – Use a service-account JSON key or Application Default Credentials to access GCS buckets.</li>
+                                <li><strong>Database</strong> – Connect to SQLite, PostgreSQL, MySQL/MariaDB, or SQL Server and load any table or custom SELECT query.</li>
+                            </ul>
+                            <p>After loading, the data becomes the active dataset and flows through the rest of the ML pipeline exactly like an uploaded file.</p>
+                        </div>
+                    </div>
+
+                    <!-- availability banner -->
+                    <div id="connectorAvailBanner" class="alert alert-info mb-3" style="font-size:0.82rem;display:none">
+                        <i class="fas fa-box-open me-2"></i>
+                        <strong>Optional packages not installed:</strong> <span id="connectorMissingPkgs"></span>
+                        <br><small>Install them with <code>pip install &lt;package&gt;</code> to enable those connectors.</small>
+                    </div>
+
+                    <!-- tabs -->
+                    <ul class="nav nav-pills mb-4" id="connectorTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="conn-s3-tab" data-bs-toggle="pill" data-bs-target="#conn-s3" type="button" role="tab">
+                                <i class="fab fa-aws me-1"></i>AWS S3
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="conn-azure-tab" data-bs-toggle="pill" data-bs-target="#conn-azure" type="button" role="tab">
+                                <i class="fab fa-microsoft me-1"></i>Azure Blob
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="conn-gcs-tab" data-bs-toggle="pill" data-bs-target="#conn-gcs" type="button" role="tab">
+                                <i class="fab fa-google me-1"></i>Google Cloud
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="conn-db-tab" data-bs-toggle="pill" data-bs-target="#conn-db" type="button" role="tab">
+                                <i class="fas fa-database me-1"></i>Database
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="connectorTabContent">
+
+                        <!-- ───────────── AWS S3 ───────────── -->
+                        <div class="tab-pane fade show active" id="conn-s3" role="tabpanel">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fab fa-aws me-2"></i>AWS S3 / S3-Compatible Storage</div>
+                                <div class="card-body">
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Access Key ID</label>
+                                            <input type="text" class="form-control font-monospace" id="s3AccessKey" placeholder="AKIAIOSFODNN7EXAMPLE">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Secret Access Key</label>
+                                            <input type="password" class="form-control font-monospace" id="s3SecretKey" placeholder="wJalrXUtnFEMI/...">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Region</label>
+                                            <input type="text" class="form-control" id="s3Region" value="us-east-1" placeholder="us-east-1">
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label">Endpoint URL <small class="text-muted">(optional, for MinIO/custom S3)</small></label>
+                                            <input type="text" class="form-control" id="s3EndpointUrl" placeholder="http://localhost:9000">
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-secondary me-2" id="s3TestBtn"><i class="fas fa-plug me-1"></i>Test Connection</button>
+                                    <div id="s3TestResult" class="d-inline-block ms-2 small"></div>
+
+                                    <hr>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Bucket</label>
+                                            <input type="text" class="form-control" id="s3Bucket" placeholder="my-data-bucket">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Prefix / Folder <small class="text-muted">(optional)</small></label>
+                                            <input type="text" class="form-control" id="s3Prefix" placeholder="data/2026/">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-primary w-100" id="s3ListBtn"><i class="fas fa-list me-1"></i>List</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="s3FileList" style="display:none">
+                                        <label class="form-label fw-semibold">Files <span class="text-muted" id="s3FileCount"></span></label>
+                                        <div class="table-responsive" style="max-height:280px;overflow-y:auto">
+                                            <table class="table table-sm table-hover mb-0" id="s3FilesTable">
+                                                <thead><tr><th>Key</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+                                                <tbody id="s3FilesTbody"></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ───────────── Azure Blob ───────────── -->
+                        <div class="tab-pane fade" id="conn-azure" role="tabpanel">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fab fa-microsoft me-2"></i>Azure Blob Storage</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Authentication Method</label>
+                                        <div class="btn-group w-100 mb-3" role="group">
+                                            <input type="radio" class="btn-check" name="azureAuthMethod" id="azureAuthConn" value="connection_string" checked>
+                                            <label class="btn btn-outline-primary" for="azureAuthConn">Connection String</label>
+                                            <input type="radio" class="btn-check" name="azureAuthMethod" id="azureAuthKey" value="account_key">
+                                            <label class="btn btn-outline-primary" for="azureAuthKey">Account Key</label>
+                                            <input type="radio" class="btn-check" name="azureAuthMethod" id="azureAuthSas" value="sas_token">
+                                            <label class="btn btn-outline-primary" for="azureAuthSas">SAS Token</label>
+                                        </div>
+                                    </div>
+
+                                    <div id="azureConnStrPanel">
+                                        <label class="form-label">Connection String</label>
+                                        <input type="password" class="form-control font-monospace mb-3" id="azureConnStr" placeholder="DefaultEndpointsProtocol=https;AccountName=...">
+                                    </div>
+                                    <div id="azureKeyPanel" style="display:none">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Account Name</label>
+                                                <input type="text" class="form-control" id="azureAccountName" placeholder="mystorageaccount">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Account Key</label>
+                                                <input type="password" class="form-control font-monospace" id="azureAccountKey" placeholder="base64-encoded key">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="azureSasPanel" style="display:none">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-5">
+                                                <label class="form-label">Account Name</label>
+                                                <input type="text" class="form-control" id="azureAccountNameSas" placeholder="mystorageaccount">
+                                            </div>
+                                            <div class="col-md-7">
+                                                <label class="form-label">SAS Token</label>
+                                                <input type="password" class="form-control font-monospace" id="azureSasToken" placeholder="?sv=2023-01-03&amp;ss=b...">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button class="btn btn-outline-secondary me-2" id="azureTestBtn"><i class="fas fa-plug me-1"></i>Test Connection</button>
+                                    <div id="azureTestResult" class="d-inline-block ms-2 small"></div>
+                                    <hr>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Container</label>
+                                            <input type="text" class="form-control" id="azureContainer" placeholder="my-container">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Prefix <small class="text-muted">(optional)</small></label>
+                                            <input type="text" class="form-control" id="azurePrefix" placeholder="datasets/">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-primary w-100" id="azureListBtn"><i class="fas fa-list me-1"></i>List</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="azureFileList" style="display:none">
+                                        <label class="form-label fw-semibold">Blobs <span class="text-muted" id="azureFileCount"></span></label>
+                                        <div class="table-responsive" style="max-height:280px;overflow-y:auto">
+                                            <table class="table table-sm table-hover mb-0">
+                                                <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+                                                <tbody id="azureFilesTbody"></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ───────────── Google Cloud Storage ───────────── -->
+                        <div class="tab-pane fade" id="conn-gcs" role="tabpanel">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fab fa-google me-2"></i>Google Cloud Storage</div>
+                                <div class="card-body">
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Project ID <small class="text-muted">(optional)</small></label>
+                                            <input type="text" class="form-control" id="gcsProject" placeholder="my-gcp-project">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Service Account JSON Key <small class="text-muted">(leave empty for Application Default Credentials)</small></label>
+                                            <textarea class="form-control font-monospace" id="gcsCredJson" rows="5" placeholder='{"type":"service_account","project_id":"..."}'></textarea>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-secondary me-2" id="gcsTestBtn"><i class="fas fa-plug me-1"></i>Test Connection</button>
+                                    <div id="gcsTestResult" class="d-inline-block ms-2 small"></div>
+                                    <hr>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Bucket</label>
+                                            <input type="text" class="form-control" id="gcsBucket" placeholder="my-gcs-bucket">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Prefix <small class="text-muted">(optional)</small></label>
+                                            <input type="text" class="form-control" id="gcsPrefix" placeholder="datasets/">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-primary w-100" id="gcsListBtn"><i class="fas fa-list me-1"></i>List</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="gcsFileList" style="display:none">
+                                        <label class="form-label fw-semibold">Objects <span class="text-muted" id="gcsFileCount"></span></label>
+                                        <div class="table-responsive" style="max-height:280px;overflow-y:auto">
+                                            <table class="table table-sm table-hover mb-0">
+                                                <thead><tr><th>Name</th><th>Size</th><th>Updated</th><th></th></tr></thead>
+                                                <tbody id="gcsFilesTbody"></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ───────────── Database ───────────── -->
+                        <div class="tab-pane fade" id="conn-db" role="tabpanel">
+                            <div class="card glass-card">
+                                <div class="card-header"><i class="fas fa-database me-2"></i>Database Connector</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Database Type</label>
+                                        <select class="form-select" id="dbType">
+                                            <option value="sqlite">SQLite (local file)</option>
+                                            <option value="postgres">PostgreSQL</option>
+                                            <option value="mysql">MySQL / MariaDB</option>
+                                            <option value="sqlserver">SQL Server</option>
+                                            <option value="url">Custom SQLAlchemy URL</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- SQLite panel -->
+                                    <div id="dbSqlitePanel">
+                                        <label class="form-label">Database File Path</label>
+                                        <input type="text" class="form-control mb-3" id="dbSqlitePath" placeholder="/path/to/database.db or relative path">
+                                    </div>
+
+                                    <!-- Network DB panel -->
+                                    <div id="dbNetworkPanel" style="display:none">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Host</label>
+                                                <input type="text" class="form-control" id="dbHost" placeholder="localhost">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Port</label>
+                                                <input type="number" class="form-control" id="dbPort" placeholder="5432">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Database</label>
+                                                <input type="text" class="form-control" id="dbName" placeholder="mydb">
+                                            </div>
+                                            <div class="col-md-5">
+                                                <label class="form-label">Username</label>
+                                                <input type="text" class="form-control" id="dbUser" placeholder="postgres">
+                                            </div>
+                                            <div class="col-md-5">
+                                                <label class="form-label">Password</label>
+                                                <input type="password" class="form-control" id="dbPassword">
+                                            </div>
+                                            <div class="col-md-2 d-flex align-items-end">
+                                                <div class="form-check form-switch mt-2">
+                                                    <input class="form-check-input" type="checkbox" id="dbSsl">
+                                                    <label class="form-check-label" for="dbSsl">SSL</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Custom URL panel -->
+                                    <div id="dbUrlPanel" style="display:none">
+                                        <label class="form-label">SQLAlchemy Connection URL</label>
+                                        <input type="text" class="form-control font-monospace mb-3" id="dbUrl" placeholder="postgresql+psycopg2://user:pass@host:5432/dbname">
+                                        <div class="control-description">Any valid <a href="https://docs.sqlalchemy.org/en/20/core/engines.html" target="_blank">SQLAlchemy engine URL</a></div>
+                                    </div>
+
+                                    <button class="btn btn-outline-secondary me-2" id="dbTestBtn"><i class="fas fa-plug me-1"></i>Test Connection</button>
+                                    <button class="btn btn-outline-primary" id="dbListTablesBtn"><i class="fas fa-list me-1"></i>List Tables</button>
+                                    <div id="dbTestResult" class="d-inline-block ms-2 small"></div>
+                                    <hr>
+
+                                    <!-- Table list -->
+                                    <div id="dbTableList" style="display:none">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold">Select Table</label>
+                                                <select class="form-select" id="dbTableSelect">
+                                                    <option value="">— select a table —</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Row Limit</label>
+                                                <input type="number" class="form-control" id="dbTableLimit" placeholder="All rows" min="100" step="1000">
+                                            </div>
+                                            <div class="col-md-3 d-flex align-items-end">
+                                                <button class="btn btn-success w-100" id="dbLoadTableBtn"><i class="fas fa-download me-1"></i>Load Table</button>
+                                            </div>
+                                        </div>
+                                        <div id="dbTableInfoPanel" style="display:none" class="alert alert-secondary py-2" style="font-size:0.82rem">
+                                            <strong>Table info:</strong> <span id="dbTableInfoText"></span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Custom SQL -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Or Run a Custom Query</label>
+                                        <textarea class="form-control font-monospace" id="dbCustomSql" rows="4" placeholder="SELECT * FROM orders WHERE created_at > '2025-01-01' LIMIT 10000"></textarea>
+                                        <div class="control-description">SELECT queries only. Results load as the active dataset.</div>
+                                    </div>
+                                    <button class="btn btn-success" id="dbRunQueryBtn"><i class="fas fa-play me-1"></i>Run Query &amp; Load</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /tab-content -->
+
+                    <!-- shared loading spinner -->
+                    <div id="connectorLoading" class="text-center mt-3" style="display:none">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted" id="connectorLoadingMsg">Loading…</p>
                     </div>
                 </section>
 

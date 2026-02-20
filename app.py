@@ -50,6 +50,10 @@ from ml_engine.knowledge_graph import KnowledgeGraphEngine
 from ml_engine.industry_templates import IndustryTemplates
 from ml_engine.monitoring_service import MonitoringService
 from ml_engine.alert_engine import AlertEngine
+from ml_engine.cloud_connectors import (
+    S3Connector, AzureBlobConnector, GCSConnector,
+    DatabaseConnector, get_availability,
+)
 from llm_engine.analyzer import LLMAnalyzer
 
 logger = get_logger("app")
@@ -4967,6 +4971,399 @@ def monitoring_get_summary(model_id):
     except Exception as exc:
         logger.exception("monitoring_get_summary error")
         return _err(str(exc))
+
+
+# ────────────────────────────────────────────────────────────────────
+#  Cloud Storage & Database Connectors
+# ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/connectors/availability", methods=["GET"])
+def connectors_availability():
+    """Return which optional connector packages are installed."""
+    return _ok(get_availability())
+
+
+# ── AWS S3 ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/connectors/s3/test", methods=["POST"])
+def s3_test():
+    """Test AWS S3 credentials and return bucket list."""
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = S3Connector(
+            aws_access_key_id=body.get("access_key", ""),
+            aws_secret_access_key=body.get("secret_key", ""),
+            region_name=body.get("region", "us-east-1"),
+            endpoint_url=body.get("endpoint_url") or None,
+        )
+        result = conn.test_connection()
+        if result["ok"]:
+            return _ok(result, "S3 connection successful")
+        return _err(result.get("error", "Connection failed"))
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("s3_test error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/s3/list", methods=["POST"])
+def s3_list():
+    """List files in an S3 bucket/prefix."""
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = S3Connector(
+            aws_access_key_id=body.get("access_key", ""),
+            aws_secret_access_key=body.get("secret_key", ""),
+            region_name=body.get("region", "us-east-1"),
+            endpoint_url=body.get("endpoint_url") or None,
+        )
+        files = conn.list_files(
+            bucket=body.get("bucket", ""),
+            prefix=body.get("prefix", ""),
+            max_keys=int(body.get("max_keys", 500)),
+        )
+        return _ok({"files": files, "count": len(files)})
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("s3_list error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/s3/load", methods=["POST"])
+def s3_load():
+    """Download a file from S3 and load it as the active dataset."""
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = S3Connector(
+            aws_access_key_id=body.get("access_key", ""),
+            aws_secret_access_key=body.get("secret_key", ""),
+            region_name=body.get("region", "us-east-1"),
+            endpoint_url=body.get("endpoint_url") or None,
+        )
+        bucket = body.get("bucket", "")
+        key    = body.get("key", "")
+        if not bucket or not key:
+            return _err("bucket and key are required")
+
+        df = conn.load_dataframe(bucket, key)
+        filename = key.split("/")[-1]
+
+        # Persist to a temp file so _load_and_store can use it
+        import tempfile, uuid as _uuid
+        tmp_name = f"{_uuid.uuid4().hex[:8]}_{filename}"
+        tmp_path = os.path.join(Config.UPLOAD_FOLDER, tmp_name)
+        ext = filename.rsplit(".", 1)[-1].lower()
+        if ext == "csv":
+            df.to_csv(tmp_path, index=False)
+        elif ext == "parquet":
+            df.to_parquet(tmp_path, index=False)
+        else:
+            df.to_csv(tmp_path, index=False)
+            tmp_path_csv = tmp_path
+            tmp_path = tmp_path_csv  # already .csv
+
+        result = _load_and_store(tmp_path, filename)
+        result["source"] = f"s3://{bucket}/{key}"
+        return _ok(result, f"Loaded from S3: {key}")
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("s3_load error")
+        return _err(str(e))
+
+
+# ── Azure Blob ────────────────────────────────────────────────────────────────
+
+@app.route("/api/connectors/azure/test", methods=["POST"])
+def azure_test():
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = AzureBlobConnector(
+            connection_string=body.get("connection_string") or None,
+            account_name=body.get("account_name") or None,
+            account_key=body.get("account_key") or None,
+            sas_token=body.get("sas_token") or None,
+        )
+        result = conn.test_connection()
+        if result["ok"]:
+            return _ok(result, "Azure Blob connection successful")
+        return _err(result.get("error", "Connection failed"))
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("azure_test error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/azure/list", methods=["POST"])
+def azure_list():
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = AzureBlobConnector(
+            connection_string=body.get("connection_string") or None,
+            account_name=body.get("account_name") or None,
+            account_key=body.get("account_key") or None,
+            sas_token=body.get("sas_token") or None,
+        )
+        files = conn.list_files(
+            container=body.get("container", ""),
+            prefix=body.get("prefix", ""),
+        )
+        return _ok({"files": files, "count": len(files)})
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("azure_list error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/azure/load", methods=["POST"])
+def azure_load():
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = AzureBlobConnector(
+            connection_string=body.get("connection_string") or None,
+            account_name=body.get("account_name") or None,
+            account_key=body.get("account_key") or None,
+            sas_token=body.get("sas_token") or None,
+        )
+        container = body.get("container", "")
+        blob_name = body.get("blob_name", "")
+        if not container or not blob_name:
+            return _err("container and blob_name are required")
+
+        df = conn.load_dataframe(container, blob_name)
+        filename = blob_name.split("/")[-1]
+        tmp_path = os.path.join(Config.UPLOAD_FOLDER, f"{uuid.uuid4().hex[:8]}_{filename}")
+        df.to_csv(tmp_path, index=False)
+        result = _load_and_store(tmp_path, filename)
+        result["source"] = f"azure://{container}/{blob_name}"
+        return _ok(result, f"Loaded from Azure: {blob_name}")
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("azure_load error")
+        return _err(str(e))
+
+
+# ── Google Cloud Storage ──────────────────────────────────────────────────────
+
+@app.route("/api/connectors/gcs/test", methods=["POST"])
+def gcs_test():
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = GCSConnector(
+            credentials_json=body.get("credentials_json") or None,
+            project=body.get("project") or None,
+        )
+        result = conn.test_connection()
+        if result["ok"]:
+            return _ok(result, "GCS connection successful")
+        return _err(result.get("error", "Connection failed"))
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("gcs_test error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/gcs/list", methods=["POST"])
+def gcs_list():
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = GCSConnector(
+            credentials_json=body.get("credentials_json") or None,
+            project=body.get("project") or None,
+        )
+        files = conn.list_files(
+            bucket=body.get("bucket", ""),
+            prefix=body.get("prefix", ""),
+        )
+        return _ok({"files": files, "count": len(files)})
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("gcs_list error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/gcs/load", methods=["POST"])
+def gcs_load():
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = GCSConnector(
+            credentials_json=body.get("credentials_json") or None,
+            project=body.get("project") or None,
+        )
+        bucket    = body.get("bucket", "")
+        blob_name = body.get("blob_name", "")
+        if not bucket or not blob_name:
+            return _err("bucket and blob_name are required")
+
+        df = conn.load_dataframe(bucket, blob_name)
+        filename = blob_name.split("/")[-1]
+        tmp_path = os.path.join(Config.UPLOAD_FOLDER, f"{uuid.uuid4().hex[:8]}_{filename}")
+        df.to_csv(tmp_path, index=False)
+        result = _load_and_store(tmp_path, filename)
+        result["source"] = f"gs://{bucket}/{blob_name}"
+        return _ok(result, f"Loaded from GCS: {blob_name}")
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("gcs_load error")
+        return _err(str(e))
+
+
+# ── Databases ─────────────────────────────────────────────────────────────────
+
+def _build_db_connector(body: dict) -> DatabaseConnector:
+    """Build a DatabaseConnector from request body params."""
+    db_type = body.get("db_type", "sqlite").lower()
+    if db_type == "sqlite":
+        path = body.get("db_path", "")
+        if not path:
+            raise ValueError("db_path is required for SQLite")
+        return DatabaseConnector.sqlite(path)
+    if db_type in ("postgres", "postgresql"):
+        return DatabaseConnector.postgres(
+            host=body.get("host", "localhost"),
+            port=int(body.get("port", 5432)),
+            database=body.get("database", "postgres"),
+            user=body.get("user", "postgres"),
+            password=body.get("password", ""),
+            ssl=bool(body.get("ssl", False)),
+        )
+    if db_type in ("mysql", "mariadb"):
+        return DatabaseConnector.mysql(
+            host=body.get("host", "localhost"),
+            port=int(body.get("port", 3306)),
+            database=body.get("database", ""),
+            user=body.get("user", "root"),
+            password=body.get("password", ""),
+        )
+    if db_type in ("sqlserver", "mssql"):
+        return DatabaseConnector.sqlserver(
+            host=body.get("host", "localhost"),
+            port=int(body.get("port", 1433)),
+            database=body.get("database", ""),
+            user=body.get("user", "sa"),
+            password=body.get("password", ""),
+        )
+    # Generic connection URL
+    url = body.get("url", "")
+    if url:
+        return DatabaseConnector.from_url(url)
+    raise ValueError(f"Unsupported db_type: {db_type}. Use sqlite/postgres/mysql/sqlserver or supply a url.")
+
+
+@app.route("/api/connectors/db/test", methods=["POST"])
+def db_test():
+    """Test a database connection."""
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = _build_db_connector(body)
+        result = conn.test_connection()
+        conn.close()
+        if result["ok"]:
+            return _ok(result, "Database connection successful")
+        return _err(result.get("error", "Connection failed"))
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("db_test error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/db/tables", methods=["POST"])
+def db_list_tables():
+    """List all tables (and views) in the database."""
+    try:
+        body = request.get_json(silent=True) or {}
+        conn = _build_db_connector(body)
+        tables = conn.list_tables()
+        views  = conn.list_views()
+        conn.close()
+        return _ok({"tables": tables, "views": views})
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("db_list_tables error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/db/table_info", methods=["POST"])
+def db_table_info():
+    """Return column schema and row count for a single table."""
+    try:
+        body = request.get_json(silent=True) or {}
+        table = body.get("table", "")
+        if not table:
+            return _err("table is required")
+        conn = _build_db_connector(body)
+        info = conn.get_table_info(table)
+        conn.close()
+        return _ok(info)
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("db_table_info error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/db/load_table", methods=["POST"])
+def db_load_table():
+    """Load a database table as the active dataset."""
+    try:
+        body = request.get_json(silent=True) or {}
+        table = body.get("table", "")
+        limit = body.get("limit")  # None = all rows
+        if not table:
+            return _err("table is required")
+        conn = _build_db_connector(body)
+        df   = conn.load_table(table, limit=int(limit) if limit else None)
+        conn.close()
+
+        filename = f"{table}.csv"
+        tmp_path = os.path.join(Config.UPLOAD_FOLDER, f"{uuid.uuid4().hex[:8]}_{filename}")
+        df.to_csv(tmp_path, index=False)
+        result = _load_and_store(tmp_path, filename)
+        result["source"] = f"db://{table}"
+        return _ok(result, f"Loaded table: {table}")
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("db_load_table error")
+        return _err(str(e))
+
+
+@app.route("/api/connectors/db/load_query", methods=["POST"])
+def db_load_query():
+    """Run a custom SQL query and load the result as the active dataset."""
+    try:
+        body = request.get_json(silent=True) or {}
+        sql  = body.get("sql", "").strip()
+        if not sql:
+            return _err("sql is required")
+        # Safety: only allow SELECT statements
+        if not sql.upper().startswith("SELECT"):
+            return _err("Only SELECT queries are allowed")
+        conn = _build_db_connector(body)
+        df   = conn.load_query(sql)
+        conn.close()
+
+        filename = "query_result.csv"
+        tmp_path = os.path.join(Config.UPLOAD_FOLDER, f"{uuid.uuid4().hex[:8]}_{filename}")
+        df.to_csv(tmp_path, index=False)
+        result = _load_and_store(tmp_path, filename)
+        result["source"] = "db://custom_query"
+        return _ok(result, f"Query returned {len(df):,} rows")
+    except ImportError as e:
+        return _err(str(e), 501)
+    except Exception as e:
+        logger.exception("db_load_query error")
+        return _err(str(e))
 
 
 # ────────────────────────────────────────────────────────────────────

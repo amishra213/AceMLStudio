@@ -267,6 +267,7 @@ function navigateTo(section) {
         nlp: "NLP Engine", vision: "Vision Engine",
         graph: "Knowledge Graph", templates: "Industry Templates",
         monitoring: "Monitoring",
+        connectors: "Cloud & DB Connectors",
     };
     document.getElementById("sectionTitle").textContent = titles[section] || section;
 
@@ -283,6 +284,9 @@ function navigateTo(section) {
         nlpPopulateColumns();
     } else if (section === "templates") {
         templatesLoadList();
+    } else if (section === "connectors") {
+        connectorsInit();
+        _dbTogglePanels();
     }
     // Re-init tooltips for the newly visible section
     setTimeout(_initTooltips, 50);
@@ -5237,3 +5241,451 @@ function _initTooltips() {
         });
     }
 }
+
+// ════════════════════════════════════════════════════════
+//  CLOUD STORAGE & DATABASE CONNECTORS
+// ════════════════════════════════════════════════════════
+
+// ── helpers ───────────────────────────────────────────────────────
+function _connShowLoading(msg = "Loading…") {
+    const el = document.getElementById("connectorLoading");
+    if (el) { el.style.display = ""; document.getElementById("connectorLoadingMsg").textContent = msg; }
+}
+function _connHideLoading() {
+    const el = document.getElementById("connectorLoading");
+    if (el) el.style.display = "none";
+}
+function _connTestResult(elId, ok, msg) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = ok
+        ? `<span class="text-success"><i class="fas fa-check-circle me-1"></i>${msg}</span>`
+        : `<span class="text-danger"><i class="fas fa-times-circle me-1"></i>${msg}</span>`;
+}
+function _connFormatSize(bytes) {
+    if (!bytes) return "—";
+    if (bytes < 1024)       return bytes + " B";
+    if (bytes < 1024*1024)  return (bytes/1024).toFixed(1) + " KB";
+    return (bytes/(1024*1024)).toFixed(1) + " MB";
+}
+
+// Called when navigating to the connectors section
+async function connectorsInit() {
+    try {
+        const res = await API.get("/api/connectors/availability");
+        if (res.status !== "ok") return;
+        const av = res.data;
+        const missing = Object.entries(av.packages || {})
+            .filter(([, installed]) => !installed)
+            .map(([pkg]) => pkg);
+        const banner = document.getElementById("connectorAvailBanner");
+        if (banner) {
+            if (missing.length) {
+                document.getElementById("connectorMissingPkgs").textContent = missing.join(", ");
+                banner.style.display = "";
+            } else {
+                banner.style.display = "none";
+            }
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// ── AWS S3 ────────────────────────────────────────────────────────
+function _s3Creds() {
+    return {
+        access_key:   document.getElementById("s3AccessKey")?.value.trim() || "",
+        secret_key:   document.getElementById("s3SecretKey")?.value.trim() || "",
+        region:       document.getElementById("s3Region")?.value.trim() || "us-east-1",
+        endpoint_url: document.getElementById("s3EndpointUrl")?.value.trim() || "",
+    };
+}
+
+async function s3Test() {
+    _connTestResult("s3TestResult", null, "Testing…");
+    try {
+        _connShowLoading("Testing S3 connection…");
+        const res = await API.post("/api/connectors/s3/test", _s3Creds());
+        _connHideLoading();
+        if (res.status === "ok") {
+            const buckets = res.data.buckets || [];
+            _connTestResult("s3TestResult", true,
+                `Connected! ${buckets.length} bucket(s): ${buckets.slice(0,5).join(", ")}${buckets.length > 5 ? "…" : ""}`);
+        } else {
+            _connTestResult("s3TestResult", false, res.message || "Failed");
+        }
+    } catch (e) {
+        _connHideLoading();
+        _connTestResult("s3TestResult", false, e.message || "Network error");
+    }
+}
+
+async function s3List() {
+    const bucket = document.getElementById("s3Bucket")?.value.trim();
+    if (!bucket) { showToast("Enter a bucket name", "warning"); return; }
+    try {
+        _connShowLoading("Listing S3 files…");
+        const res = await API.post("/api/connectors/s3/list", {
+            ..._s3Creds(), bucket,
+            prefix: document.getElementById("s3Prefix")?.value.trim() || "",
+        });
+        _connHideLoading();
+        if (res.status !== "ok") { showToast(res.message || "Error", "error"); return; }
+        const files = res.data.files || [];
+        document.getElementById("s3FileCount").textContent = `(${files.length} files)`;
+        const tbody = document.getElementById("s3FilesTbody");
+        if (tbody) {
+            tbody.innerHTML = files.length === 0
+                ? `<tr><td colspan="4" class="text-muted text-center">No supported files found</td></tr>`
+                : files.map(f => `
+                    <tr>
+                        <td class="small font-monospace">${f.key}</td>
+                        <td class="small">${_connFormatSize(f.size_bytes)}</td>
+                        <td class="small text-muted">${(f.last_modified||"").substring(0,10)}</td>
+                        <td><button class="btn btn-xs btn-success btn-sm" onclick="s3LoadFile('${f.key.replace(/'/g,"\\'")}')"
+                             data-bucket="${bucket}">
+                            <i class="fas fa-download"></i> Load
+                        </button></td>
+                    </tr>`).join("");
+        }
+        document.getElementById("s3FileList").style.display = "";
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error listing files", "error");
+    }
+}
+
+async function s3LoadFile(key) {
+    const bucket = document.getElementById("s3Bucket")?.value.trim();
+    try {
+        _connShowLoading(`Loading ${key.split("/").pop()}…`);
+        const res = await API.post("/api/connectors/s3/load", { ..._s3Creds(), bucket, key });
+        _connHideLoading();
+        if (res.status === "ok") {
+            showToast(`Loaded from S3: ${key.split("/").pop()}`, "success");
+            onUploadSuccess(res.data);
+            navigateTo("upload");
+        } else {
+            showToast(res.message || "Failed to load file", "error");
+        }
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error", "error");
+    }
+}
+
+// ── Azure Blob ────────────────────────────────────────────────────
+function _azureAuthMethod() {
+    const radios = document.querySelectorAll('input[name="azureAuthMethod"]');
+    for (const r of radios) if (r.checked) return r.value;
+    return "connection_string";
+}
+function _azureCreds() {
+    const method = _azureAuthMethod();
+    if (method === "connection_string") return { connection_string: document.getElementById("azureConnStr")?.value.trim() || "" };
+    if (method === "account_key")       return { account_name: document.getElementById("azureAccountName")?.value.trim(), account_key: document.getElementById("azureAccountKey")?.value.trim() };
+    if (method === "sas_token")         return { account_name: document.getElementById("azureAccountNameSas")?.value.trim(), sas_token: document.getElementById("azureSasToken")?.value.trim() };
+    return {};
+}
+function _azureTogglePanels() {
+    const method = _azureAuthMethod();
+    document.getElementById("azureConnStrPanel").style.display = method === "connection_string" ? "" : "none";
+    document.getElementById("azureKeyPanel").style.display    = method === "account_key"        ? "" : "none";
+    document.getElementById("azureSasPanel").style.display    = method === "sas_token"          ? "" : "none";
+}
+
+async function azureTest() {
+    try {
+        _connShowLoading("Testing Azure connection…");
+        const res = await API.post("/api/connectors/azure/test", _azureCreds());
+        _connHideLoading();
+        if (res.status === "ok") {
+            _connTestResult("azureTestResult", true, `Connected! ${res.data.count} container(s)`);
+        } else {
+            _connTestResult("azureTestResult", false, res.message || "Failed");
+        }
+    } catch (e) {
+        _connHideLoading();
+        _connTestResult("azureTestResult", false, e.message || "Network error");
+    }
+}
+
+async function azureList() {
+    const container = document.getElementById("azureContainer")?.value.trim();
+    if (!container) { showToast("Enter a container name", "warning"); return; }
+    try {
+        _connShowLoading("Listing Azure blobs…");
+        const res = await API.post("/api/connectors/azure/list", {
+            ..._azureCreds(), container,
+            prefix: document.getElementById("azurePrefix")?.value.trim() || "",
+        });
+        _connHideLoading();
+        if (res.status !== "ok") { showToast(res.message || "Error", "error"); return; }
+        const files = res.data.files || [];
+        document.getElementById("azureFileCount").textContent = `(${files.length} blobs)`;
+        const tbody = document.getElementById("azureFilesTbody");
+        if (tbody) {
+            tbody.innerHTML = files.length === 0
+                ? `<tr><td colspan="4" class="text-muted text-center">No supported blobs found</td></tr>`
+                : files.map(f => `
+                    <tr>
+                        <td class="small font-monospace">${f.name}</td>
+                        <td class="small">${_connFormatSize(f.size_bytes)}</td>
+                        <td class="small text-muted">${(f.last_modified||"").substring(0,10)}</td>
+                        <td><button class="btn btn-xs btn-success btn-sm" onclick="azureLoadBlob('${f.name.replace(/'/g,"\\'")}')">
+                            <i class="fas fa-download"></i> Load
+                        </button></td>
+                    </tr>`).join("");
+        }
+        document.getElementById("azureFileList").style.display = "";
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error listing blobs", "error");
+    }
+}
+
+async function azureLoadBlob(blobName) {
+    const container = document.getElementById("azureContainer")?.value.trim();
+    try {
+        _connShowLoading(`Loading ${blobName.split("/").pop()}…`);
+        const res = await API.post("/api/connectors/azure/load", { ..._azureCreds(), container, blob_name: blobName });
+        _connHideLoading();
+        if (res.status === "ok") {
+            showToast(`Loaded from Azure: ${blobName.split("/").pop()}`, "success");
+            onUploadSuccess(res.data);
+            navigateTo("upload");
+        } else {
+            showToast(res.message || "Failed", "error");
+        }
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error", "error");
+    }
+}
+
+// ── Google Cloud Storage ─────────────────────────────────────────
+function _gcsCreds() {
+    return {
+        credentials_json: document.getElementById("gcsCredJson")?.value.trim() || "",
+        project:          document.getElementById("gcsProject")?.value.trim() || "",
+    };
+}
+
+async function gcsTest() {
+    try {
+        _connShowLoading("Testing GCS connection…");
+        const res = await API.post("/api/connectors/gcs/test", _gcsCreds());
+        _connHideLoading();
+        if (res.status === "ok") {
+            _connTestResult("gcsTestResult", true, `Connected! ${res.data.count} bucket(s)`);
+        } else {
+            _connTestResult("gcsTestResult", false, res.message || "Failed");
+        }
+    } catch (e) {
+        _connHideLoading();
+        _connTestResult("gcsTestResult", false, e.message || "Network error");
+    }
+}
+
+async function gcsList() {
+    const bucket = document.getElementById("gcsBucket")?.value.trim();
+    if (!bucket) { showToast("Enter a bucket name", "warning"); return; }
+    try {
+        _connShowLoading("Listing GCS objects…");
+        const res = await API.post("/api/connectors/gcs/list", {
+            ..._gcsCreds(), bucket,
+            prefix: document.getElementById("gcsPrefix")?.value.trim() || "",
+        });
+        _connHideLoading();
+        if (res.status !== "ok") { showToast(res.message || "Error", "error"); return; }
+        const files = res.data.files || [];
+        document.getElementById("gcsFileCount").textContent = `(${files.length} objects)`;
+        const tbody = document.getElementById("gcsFilesTbody");
+        if (tbody) {
+            tbody.innerHTML = files.length === 0
+                ? `<tr><td colspan="4" class="text-muted text-center">No supported objects found</td></tr>`
+                : files.map(f => `
+                    <tr>
+                        <td class="small font-monospace">${f.name}</td>
+                        <td class="small">${_connFormatSize(f.size_bytes)}</td>
+                        <td class="small text-muted">${(f.updated||"").substring(0,10)}</td>
+                        <td><button class="btn btn-xs btn-success btn-sm" onclick="gcsLoadBlob('${f.name.replace(/'/g,"\\'")}')">
+                            <i class="fas fa-download"></i> Load
+                        </button></td>
+                    </tr>`).join("");
+        }
+        document.getElementById("gcsFileList").style.display = "";
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error listing objects", "error");
+    }
+}
+
+async function gcsLoadBlob(blobName) {
+    const bucket = document.getElementById("gcsBucket")?.value.trim();
+    try {
+        _connShowLoading(`Loading ${blobName.split("/").pop()}…`);
+        const res = await API.post("/api/connectors/gcs/load", { ..._gcsCreds(), bucket, blob_name: blobName });
+        _connHideLoading();
+        if (res.status === "ok") {
+            showToast(`Loaded from GCS: ${blobName.split("/").pop()}`, "success");
+            onUploadSuccess(res.data);
+            navigateTo("upload");
+        } else {
+            showToast(res.message || "Failed", "error");
+        }
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error", "error");
+    }
+}
+
+// ── Database Connector ───────────────────────────────────────────
+function _dbType() { return document.getElementById("dbType")?.value || "sqlite"; }
+function _dbCreds() {
+    const t = _dbType();
+    if (t === "sqlite")  return { db_type: "sqlite",  db_path: document.getElementById("dbSqlitePath")?.value.trim() };
+    if (t === "url")     return { db_type: "url",     url: document.getElementById("dbUrl")?.value.trim() };
+    return {
+        db_type:   t,
+        host:      document.getElementById("dbHost")?.value.trim()     || "localhost",
+        port:      document.getElementById("dbPort")?.value            || (t === "postgres" ? "5432" : t === "mysql" ? "3306" : "1433"),
+        database:  document.getElementById("dbName")?.value.trim()     || "",
+        user:      document.getElementById("dbUser")?.value.trim()     || "",
+        password:  document.getElementById("dbPassword")?.value        || "",
+        ssl:       document.getElementById("dbSsl")?.checked           || false,
+    };
+}
+
+function _dbTogglePanels() {
+    const t = _dbType();
+    document.getElementById("dbSqlitePanel").style.display  = t === "sqlite" ? "" : "none";
+    document.getElementById("dbNetworkPanel").style.display = ["postgres","mysql","mariadb","sqlserver","mssql"].includes(t) ? "" : "none";
+    document.getElementById("dbUrlPanel").style.display     = t === "url"    ? "" : "none";
+    // Set default port based on type
+    const portEl = document.getElementById("dbPort");
+    if (portEl && !portEl.value) {
+        portEl.value = t === "postgres" ? "5432" : t === "mysql" ? "3306" : t === "sqlserver" ? "1433" : "";
+    }
+}
+
+async function dbTest() {
+    try {
+        _connShowLoading("Testing database connection…");
+        const res = await API.post("/api/connectors/db/test", _dbCreds());
+        _connHideLoading();
+        if (res.status === "ok") {
+            _connTestResult("dbTestResult", true, `Connected! ${res.data.count} table(s)`);
+        } else {
+            _connTestResult("dbTestResult", false, res.message || "Connection failed");
+        }
+    } catch (e) {
+        _connHideLoading();
+        _connTestResult("dbTestResult", false, e.message || "Network error");
+    }
+}
+
+async function dbListTables() {
+    try {
+        _connShowLoading("Fetching table list…");
+        const res = await API.post("/api/connectors/db/tables", _dbCreds());
+        _connHideLoading();
+        if (res.status !== "ok") { showToast(res.message || "Error", "error"); return; }
+        const tables = res.data.tables || [];
+        const views  = res.data.views  || [];
+        const sel = document.getElementById("dbTableSelect");
+        if (sel) {
+            sel.innerHTML = '<option value="">— select a table —</option>' +
+                (tables.length ? '<optgroup label="Tables">' + tables.map(t => `<option value="${t}">${t}</option>`).join("") + "</optgroup>" : "") +
+                (views.length  ? '<optgroup label="Views">'  + views.map(v  => `<option value="${v}">${v}</option>`).join("")  + "</optgroup>" : "");
+        }
+        document.getElementById("dbTableList").style.display = "";
+        _connTestResult("dbTestResult", true, `${tables.length} table(s), ${views.length} view(s)`);
+        document.getElementById("dbTableInfoPanel").style.display = "none";
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error", "error");
+    }
+}
+
+async function dbLoadTable() {
+    const table = document.getElementById("dbTableSelect")?.value;
+    if (!table) { showToast("Select a table first", "warning"); return; }
+    const limit = document.getElementById("dbTableLimit")?.value || null;
+    try {
+        _connShowLoading(`Loading table "${table}"…`);
+        const res = await API.post("/api/connectors/db/load_table", { ..._dbCreds(), table, limit: limit ? parseInt(limit) : null });
+        _connHideLoading();
+        if (res.status === "ok") {
+            showToast(`Loaded table: ${table}`, "success");
+            onUploadSuccess(res.data);
+            navigateTo("upload");
+        } else {
+            showToast(res.message || "Failed", "error");
+        }
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error", "error");
+    }
+}
+
+async function dbRunQuery() {
+    const sql = document.getElementById("dbCustomSql")?.value.trim();
+    if (!sql) { showToast("Enter a SQL query", "warning"); return; }
+    if (!sql.toUpperCase().startsWith("SELECT")) { showToast("Only SELECT queries are allowed", "error"); return; }
+    try {
+        _connShowLoading("Running query…");
+        const res = await API.post("/api/connectors/db/load_query", { ..._dbCreds(), sql });
+        _connHideLoading();
+        if (res.status === "ok") {
+            showToast(res.message || "Query executed", "success");
+            onUploadSuccess(res.data);
+            navigateTo("upload");
+        } else {
+            showToast(res.message || "Failed", "error");
+        }
+    } catch (e) {
+        _connHideLoading();
+        showToast(e.message || "Error", "error");
+    }
+}
+
+// ── Also show table info when a table is selected ────────────────
+async function _dbTableSelected(tableName) {
+    if (!tableName) { document.getElementById("dbTableInfoPanel").style.display = "none"; return; }
+    try {
+        const res = await API.post("/api/connectors/db/table_info", { ..._dbCreds(), table: tableName });
+        if (res.status === "ok") {
+            const info = res.data;
+            document.getElementById("dbTableInfoText").textContent =
+                `${info.row_count.toLocaleString()} rows, ${info.columns.length} columns: ${info.columns.slice(0,8).map(c => c.name).join(", ")}${info.columns.length > 8 ? "…" : ""}`;
+            document.getElementById("dbTableInfoPanel").style.display = "";
+        }
+    } catch(e) { /* ignore */ }
+}
+
+// ── Wire up all connector event listeners ─────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+
+    // S3
+    document.getElementById("s3TestBtn")?.addEventListener("click", s3Test);
+    document.getElementById("s3ListBtn")?.addEventListener("click", s3List);
+
+    // Azure – auth panel toggle
+    document.querySelectorAll('input[name="azureAuthMethod"]').forEach(r =>
+        r.addEventListener("change", _azureTogglePanels));
+    document.getElementById("azureTestBtn")?.addEventListener("click", azureTest);
+    document.getElementById("azureListBtn")?.addEventListener("click", azureList);
+
+    // GCS
+    document.getElementById("gcsTestBtn")?.addEventListener("click", gcsTest);
+    document.getElementById("gcsListBtn")?.addEventListener("click", gcsList);
+
+    // Database – type panel toggle
+    document.getElementById("dbType")?.addEventListener("change", () => { _dbTogglePanels(); document.getElementById("dbTableList").style.display = "none"; });
+    document.getElementById("dbTestBtn")?.addEventListener("click", dbTest);
+    document.getElementById("dbListTablesBtn")?.addEventListener("click", dbListTables);
+    document.getElementById("dbTableSelect")?.addEventListener("change", e => _dbTableSelected(e.target.value));
+    document.getElementById("dbLoadTableBtn")?.addEventListener("click", dbLoadTable);
+    document.getElementById("dbRunQueryBtn")?.addEventListener("click", dbRunQuery);
+});
+
