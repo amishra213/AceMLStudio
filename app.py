@@ -5366,6 +5366,538 @@ def db_load_query():
         return _err(str(e))
 
 
+# ── New Database Extraction with Scheduling ───────────────────────────────────
+
+from ml_engine.db_connector import (
+    DatabaseConnector as DBConnector,
+    DatabaseConfigManager,
+    ExtractionQueryManager
+)
+from ml_engine.db_scheduler import get_scheduler
+
+# Initialize managers
+db_config_manager = DatabaseConfigManager()
+query_manager = ExtractionQueryManager()
+
+
+@app.route("/api/db_extract/connections/list", methods=["GET"])
+def list_db_connections():
+    """List all saved database connections."""
+    try:
+        connections = db_config_manager.list_connections()
+        return _ok(connections)
+    except Exception as e:
+        logger.exception("list_db_connections error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/connections/save", methods=["POST"])
+def save_db_connection():
+    """Save a new database connection configuration."""
+    try:
+        body = request.get_json(silent=True) or {}
+        
+        connection_id = body.get("id") or str(uuid.uuid4())
+        name = body.get("name", "")
+        db_type = body.get("db_type", "")
+        host = body.get("host", "")
+        port = body.get("port", 0)
+        database = body.get("database", "")
+        username = body.get("username", "")
+        password = body.get("password", "")
+        driver = body.get("driver")
+        
+        if not name or not db_type:
+            return _err("name and db_type are required")
+        
+        success = db_config_manager.save_connection(
+            connection_id, name, db_type, host, port,
+            database, username, password, driver
+        )
+        
+        if success:
+            return _ok({"id": connection_id}, "Connection saved successfully")
+        return _err("Failed to save connection")
+        
+    except Exception as e:
+        logger.exception("save_db_connection error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/connections/test", methods=["POST"])
+def test_db_connection():
+    """Test a database connection (from saved or new config)."""
+    try:
+        body = request.get_json(silent=True) or {}
+        connection_id = body.get("connection_id")
+        
+        connector = DBConnector()
+        
+        if connection_id:
+            # Test saved connection
+            config = db_config_manager.get_connection(connection_id)
+            if not config:
+                return _err("Connection not found")
+            
+            connected = connector.connect(
+                db_type=config['db_type'],
+                host=config['host'],
+                port=config['port'],
+                database=config['database'],
+                username=config['username'],
+                password=config['password'],
+                driver=config.get('driver')
+            )
+        else:
+            # Test new connection
+            connected = connector.connect(
+                db_type=body.get("db_type", ""),
+                host=body.get("host", ""),
+                port=body.get("port", 0),
+                database=body.get("database", ""),
+                username=body.get("username", ""),
+                password=body.get("password", ""),
+                driver=body.get("driver")
+            )
+        
+        if connected:
+            result = connector.test_connection()
+            connector.disconnect()
+            return _ok(result, "Connection successful")
+        
+        return _err("Connection failed")
+        
+    except Exception as e:
+        logger.exception("test_db_connection error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/connections/delete", methods=["POST"])
+def delete_db_connection():
+    """Delete a saved database connection."""
+    try:
+        body = request.get_json(silent=True) or {}
+        connection_id = body.get("connection_id", "")
+        
+        if not connection_id:
+            return _err("connection_id is required")
+        
+        success = db_config_manager.delete_connection(connection_id)
+        
+        if success:
+            return _ok(None, "Connection deleted successfully")
+        return _err("Connection not found")
+        
+    except Exception as e:
+        logger.exception("delete_db_connection error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/tables", methods=["POST"])
+def list_db_tables():
+    """List tables in a database connection."""
+    try:
+        body = request.get_json(silent=True) or {}
+        connection_id = body.get("connection_id", "")
+        
+        if not connection_id:
+            return _err("connection_id is required")
+        
+        config = db_config_manager.get_connection(connection_id)
+        if not config:
+            return _err("Connection not found")
+        
+        connector = DBConnector()
+        connector.connect(
+            db_type=config['db_type'],
+            host=config['host'],
+            port=config['port'],
+            database=config['database'],
+            username=config['username'],
+            password=config['password'],
+            driver=config.get('driver')
+        )
+        
+        tables = connector.list_tables()
+        connector.disconnect()
+        
+        return _ok({"tables": tables})
+        
+    except Exception as e:
+        logger.exception("list_db_tables error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/columns", methods=["POST"])
+def get_table_columns():
+    """Get columns for a specific table."""
+    try:
+        body = request.get_json(silent=True) or {}
+        connection_id = body.get("connection_id", "")
+        table_name = body.get("table_name", "")
+        
+        if not connection_id or not table_name:
+            return _err("connection_id and table_name are required")
+        
+        config = db_config_manager.get_connection(connection_id)
+        if not config:
+            return _err("Connection not found")
+        
+        connector = DBConnector()
+        connector.connect(
+            db_type=config['db_type'],
+            host=config['host'],
+            port=config['port'],
+            database=config['database'],
+            username=config['username'],
+            password=config['password'],
+            driver=config.get('driver')
+        )
+        
+        columns = connector.get_table_columns(table_name)
+        row_count = connector.get_table_row_count(table_name)
+        connector.disconnect()
+        
+        return _ok({"columns": columns, "row_count": row_count})
+        
+    except Exception as e:
+        logger.exception("get_table_columns error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/date_range", methods=["POST"])
+def get_date_range():
+    """Get min/max dates for a date column."""
+    try:
+        body = request.get_json(silent=True) or {}
+        connection_id = body.get("connection_id", "")
+        table_name = body.get("table_name", "")
+        date_column = body.get("date_column", "")
+        
+        if not connection_id or not table_name or not date_column:
+            return _err("connection_id, table_name, and date_column are required")
+        
+        config = db_config_manager.get_connection(connection_id)
+        if not config:
+            return _err("Connection not found")
+        
+        connector = DBConnector()
+        connector.connect(
+            db_type=config['db_type'],
+            host=config['host'],
+            port=config['port'],
+            database=config['database'],
+            username=config['username'],
+            password=config['password'],
+            driver=config.get('driver')
+        )
+        
+        date_range = connector.get_date_range(table_name, date_column)
+        connector.disconnect()
+        
+        return _ok(date_range)
+        
+    except Exception as e:
+        logger.exception("get_date_range error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/queries/save", methods=["POST"])
+def save_extraction_query():
+    """Save an extraction query configuration."""
+    try:
+        body = request.get_json(silent=True) or {}
+        
+        query_id = body.get("id") or str(uuid.uuid4())
+        name = body.get("name", "")
+        connection_id = body.get("connection_id", "")
+        table_name = body.get("table_name", "")
+        columns = body.get("columns", [])
+        date_column = body.get("date_column")
+        start_date = body.get("start_date")
+        end_date = body.get("end_date")
+        where_clause = body.get("where_clause")
+        schedule_enabled = body.get("schedule_enabled", False)
+        schedule_interval_minutes = body.get("schedule_interval_minutes", 60)
+        
+        if not name or not connection_id or not table_name:
+            return _err("name, connection_id, and table_name are required")
+        
+        success = query_manager.save_query(
+            query_id, name, connection_id, table_name, columns,
+            date_column, start_date, end_date, where_clause,
+            schedule_enabled, schedule_interval_minutes
+        )
+        
+        if success:
+            # If schedule enabled, add to scheduler
+            if schedule_enabled:
+                scheduler = get_scheduler()
+                scheduler.schedule_extraction(query_id, schedule_interval_minutes)
+            
+            return _ok({"id": query_id}, "Query saved successfully")
+        return _err("Failed to save query")
+        
+    except Exception as e:
+        logger.exception("save_extraction_query error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/queries/list", methods=["GET"])
+def list_extraction_queries():
+    """List all saved extraction queries."""
+    try:
+        queries = query_manager.list_queries()
+        return _ok(queries)
+    except Exception as e:
+        logger.exception("list_extraction_queries error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/queries/get", methods=["POST"])
+def get_extraction_query():
+    """Get a specific extraction query."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        
+        if not query_id:
+            return _err("query_id is required")
+        
+        query = query_manager.get_query(query_id)
+        if query:
+            # Include excluded columns from feedback loop
+            excluded = query_manager.get_excluded_columns(query_id)
+            query['excluded_columns'] = excluded
+            return _ok(query)
+        return _err("Query not found")
+        
+    except Exception as e:
+        logger.exception("get_extraction_query error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/queries/delete", methods=["POST"])
+def delete_extraction_query():
+    """Delete an extraction query."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        
+        if not query_id:
+            return _err("query_id is required")
+        
+        # Cancel schedule if active
+        scheduler = get_scheduler()
+        scheduler.cancel_extraction(query_id)
+        
+        success = query_manager.delete_query(query_id)
+        
+        if success:
+            return _ok(None, "Query deleted successfully")
+        return _err("Query not found")
+        
+    except Exception as e:
+        logger.exception("delete_extraction_query error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/extract_now", methods=["POST"])
+def extract_data_now():
+    """Extract data immediately (for testing or manual extraction)."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        
+        if not query_id:
+            return _err("query_id is required")
+        
+        query_config = query_manager.get_query(query_id)
+        if not query_config:
+            return _err("Query not found")
+        
+        connection_config = db_config_manager.get_connection(query_config['connection_id'])
+        if not connection_config:
+            return _err("Connection not found")
+        
+        connector = DBConnector()
+        connector.connect(
+            db_type=connection_config['db_type'],
+            host=connection_config['host'],
+            port=connection_config['port'],
+            database=connection_config['database'],
+            username=connection_config['username'],
+            password=connection_config['password'],
+            driver=connection_config.get('driver')
+        )
+        
+        # Get excluded columns from feedback loop
+        excluded_columns = query_manager.get_excluded_columns(query_id)
+        
+        df = connector.extract_data(
+            table_name=query_config['table_name'],
+            columns=query_config.get('columns'),
+            date_column=query_config.get('date_column'),
+            start_date=query_config.get('start_date'),
+            end_date=query_config.get('end_date'),
+            where_clause=query_config.get('where_clause'),
+            excluded_columns=excluded_columns
+        )
+        
+        connector.disconnect()
+        
+        if df is None or df.empty:
+            return _err("No data extracted")
+        
+        # Save to uploads and load into session
+        filename = f"{query_config['table_name']}_extract.csv"
+        tmp_path = os.path.join(Config.UPLOAD_FOLDER, f"{uuid.uuid4().hex[:8]}_{filename}")
+        df.to_csv(tmp_path, index=False)
+        
+        result = _load_and_store(tmp_path, filename)
+        result["source"] = f"db_extract://{query_config['name']}"
+        result["rows"] = len(df)
+        result["columns"] = len(df.columns)
+        
+        # Update query stats
+        query_manager.update_run_stats(query_id, success=True)
+        
+        return _ok(result, f"Extracted {len(df)} rows from {query_config['table_name']}")
+        
+    except Exception as e:
+        logger.exception("extract_data_now error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/schedule/start", methods=["POST"])
+def start_extraction_schedule():
+    """Start scheduled extraction for a query."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        interval_minutes = body.get("interval_minutes", 60)
+        start_immediately = body.get("start_immediately", False)
+        
+        if not query_id:
+            return _err("query_id is required")
+        
+        scheduler = get_scheduler()
+        job_id = scheduler.schedule_extraction(query_id, interval_minutes, start_immediately)
+        
+        if job_id:
+            # Update query config
+            query_config = query_manager.get_query(query_id)
+            if query_config:
+                query_config['schedule_enabled'] = True
+                query_config['schedule_interval_minutes'] = interval_minutes
+                query_manager.queries[query_id] = query_config
+                query_manager._save_queries()
+            
+            return _ok({"job_id": job_id}, "Schedule started successfully")
+        return _err("Failed to start schedule")
+        
+    except Exception as e:
+        logger.exception("start_extraction_schedule error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/schedule/stop", methods=["POST"])
+def stop_extraction_schedule():
+    """Stop scheduled extraction for a query."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        
+        if not query_id:
+            return _err("query_id is required")
+        
+        scheduler = get_scheduler()
+        success = scheduler.cancel_extraction(query_id)
+        
+        if success:
+            # Update query config
+            query_config = query_manager.get_query(query_id)
+            if query_config:
+                query_config['schedule_enabled'] = False
+                query_manager.queries[query_id] = query_config
+                query_manager._save_queries()
+            
+            return _ok(None, "Schedule stopped successfully")
+        return _err("No active schedule found")
+        
+    except Exception as e:
+        logger.exception("stop_extraction_schedule error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/schedule/jobs", methods=["GET"])
+def get_active_jobs():
+    """Get list of active scheduled extraction jobs."""
+    try:
+        scheduler = get_scheduler()
+        jobs = scheduler.get_active_jobs()
+        return _ok(jobs)
+    except Exception as e:
+        logger.exception("get_active_jobs error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/history", methods=["POST"])
+def get_extraction_history():
+    """Get extraction history for a query or all queries."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id")
+        limit = body.get("limit", 50)
+        
+        scheduler = get_scheduler()
+        history = scheduler.get_extraction_history(query_id, limit)
+        
+        return _ok(history)
+    except Exception as e:
+        logger.exception("get_extraction_history error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/feedback/record_drop", methods=["POST"])
+def record_dropped_column():
+    """Record that a column was dropped in the pipeline (feedback loop)."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        column_name = body.get("column_name", "")
+        
+        if not query_id or not column_name:
+            return _err("query_id and column_name are required")
+        
+        query_manager.record_dropped_column(query_id, column_name)
+        
+        return _ok(None, f"Column '{column_name}' marked for exclusion")
+        
+    except Exception as e:
+        logger.exception("record_dropped_column error")
+        return _err(str(e))
+
+
+@app.route("/api/db_extract/feedback/clear", methods=["POST"])
+def clear_dropped_columns():
+    """Clear feedback for a query."""
+    try:
+        body = request.get_json(silent=True) or {}
+        query_id = body.get("query_id", "")
+        
+        if not query_id:
+            return _err("query_id is required")
+        
+        query_manager.clear_dropped_columns(query_id)
+        
+        return _ok(None, "Feedback cleared successfully")
+        
+    except Exception as e:
+        logger.exception("clear_dropped_columns error")
+        return _err(str(e))
+
+
 # ────────────────────────────────────────────────────────────────────
 #  Error Handlers
 # ────────────────────────────────────────────────────────────────────
