@@ -65,23 +65,23 @@ logger = get_logger("app")
 class PandasJSONProvider(DefaultJSONProvider):
     """Custom JSON provider that handles pandas and numpy types."""
     
-    def default(self, obj):
+    def default(self, o):  # type: ignore[override]
         """Convert pandas/numpy types to JSON-serializable types."""
-        if pd.isna(obj):  # Handles pd.NA, np.nan, pd.NaT, None
+        if pd.isna(o):  # Handles pd.NA, np.nan, pd.NaT, None
             return None
-        if hasattr(obj, 'item'):
+        if hasattr(o, 'item'):
             # numpy scalar — convert via .item() which gives a native Python type
-            val = obj.item()
+            val = o.item()
             if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
                 return None
             return val
-        if isinstance(obj, (np.bool_, bool)):
-            return bool(obj)
-        if isinstance(obj, (pd.Timestamp, np.datetime64)):
-            return str(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
+        if isinstance(o, (np.bool_, bool)):
+            return bool(o)
+        if isinstance(o, (pd.Timestamp, np.datetime64)):
+            return str(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super().default(o)
 
 
 # ────────────────────────────────────────────────────────────────────

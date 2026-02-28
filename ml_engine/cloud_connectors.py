@@ -28,7 +28,7 @@ import io
 import logging
 import os
 import tempfile
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import pandas as pd
 
@@ -49,7 +49,7 @@ except ImportError:
     HAS_AZURE = False
 
 try:
-    from google.cloud import storage as gcs_storage
+    from google.cloud import storage as gcs_storage  # type: ignore
     HAS_GCS = True
 except ImportError:
     HAS_GCS = False
@@ -59,6 +59,13 @@ try:
     HAS_SQLALCHEMY = True
 except ImportError:
     HAS_SQLALCHEMY = False
+
+if TYPE_CHECKING:
+    import boto3  # type: ignore
+    from azure.storage.blob import BlobServiceClient  # type: ignore
+    from google.cloud import storage  # noqa: F401  # type: ignore
+    gcs_storage = storage  # type: ignore
+    from sqlalchemy import create_engine, text, inspect  # type: ignore
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
