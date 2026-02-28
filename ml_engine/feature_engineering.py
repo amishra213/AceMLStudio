@@ -409,6 +409,7 @@ class FeatureEngineer:
         
         try:
             # Parse condition
+            mask = None  # Initialize mask
             if condition.startswith('contains:'):
                 search_str = condition.split(':', 1)[1]
                 mask = df[column].astype(str).str.contains(search_str, na=False, case=False)
@@ -438,6 +439,8 @@ class FeatureEngineer:
             else:
                 raise ValueError(f"Unsupported condition format: {condition}")
             
+            if mask is None:
+                raise ValueError("Could not create mask from condition")
             df[new_col_name] = mask.map({True: value_if_true, False: value_if_false})
             logger.info("Created conditional column '%s' based on '%s %s'", 
                        new_col_name, column, condition)

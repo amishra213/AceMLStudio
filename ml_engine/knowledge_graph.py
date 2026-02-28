@@ -304,6 +304,7 @@ class KnowledgeGraphEngine:
 
         # ── NetworkX-powered metrics ─────────────────────────────────
         if HAS_NETWORKX:
+            import networkx as nx
             G = nx.Graph()
             for n_node in nodes:
                 G.add_node(n_node["id"])
@@ -411,6 +412,7 @@ class KnowledgeGraphEngine:
             return {"error": "Graph has no nodes"}
 
         if HAS_NETWORKX:
+            import networkx as nx
             G = nx.Graph()
             for n_node in nodes:
                 G.add_node(n_node["id"])
@@ -596,6 +598,7 @@ class KnowledgeGraphEngine:
                 return None
             ct = pd.crosstab(combined["a"], combined["b"])
             if HAS_SCIPY:
+                from scipy.stats import chi2_contingency
                 chi2, _, _, _ = chi2_contingency(ct)
             else:
                 # Manual chi2

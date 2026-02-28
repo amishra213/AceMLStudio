@@ -61,6 +61,7 @@ REG_REGISTRY: dict[str, type] = {
 }
 
 if HAS_XGB:
+    from xgboost import XGBClassifier, XGBRegressor
     CLF_REGISTRY["xgboost_clf"] = XGBClassifier
     REG_REGISTRY["xgboost_reg"] = XGBRegressor
 
