@@ -3916,13 +3916,23 @@
                                         Enable automatic scheduling
                                     </label>
                                 </div>
-                                <small class="text-muted">When enabled, this job will run automatically whenever the linked extraction query completes.</small>
+                                <small class="text-muted">When enabled, this job will run automatically whenever the linked extraction query completes or on a standalone timer.</small>
                             </div>
                             <div id="rjScheduleConfig" style="display:none">
+                                <!-- Frequency -->
                                 <div class="row g-2 mb-3">
-                                    <div class="col-8">
-                                        <label class="form-label form-label-sm">Interval (minutes)</label>
-                                        <input type="number" class="form-control form-control-sm" id="rjIntervalMins" value="60" min="5">
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm">Every</label>
+                                        <input type="number" class="form-control form-control-sm" id="rjFreqValue" value="1" min="1">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm">Unit</label>
+                                        <select class="form-select form-select-sm" id="rjFreqUnit">
+                                            <option value="minutes">Minutes</option>
+                                            <option value="hours" selected>Hours</option>
+                                            <option value="days">Days</option>
+                                            <option value="weeks">Weeks</option>
+                                        </select>
                                     </div>
                                     <div class="col-4 d-flex align-items-end">
                                         <div class="form-check form-switch ms-1">
@@ -3931,7 +3941,19 @@
                                         </div>
                                     </div>
                                 </div>
+                                <!-- Date range -->
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label form-label-sm">Start Date <span class="text-muted">(optional)</span></label>
+                                        <input type="datetime-local" class="form-control form-control-sm" id="rjStartDate">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label form-label-sm">End Date <span class="text-muted">(optional)</span></label>
+                                        <input type="datetime-local" class="form-control form-control-sm" id="rjEndDate">
+                                    </div>
+                                </div>
                                 <small class="text-muted">
+                                    <strong>Start / End Date</strong>: the scheduler will only fire within this window. Leave blank for open-ended scheduling.<br>
                                     <strong>Standalone timer</strong>: also runs on its own interval clock, independent of the extraction schedule.
                                 </small>
                             </div>

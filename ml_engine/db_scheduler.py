@@ -107,7 +107,11 @@ class DatabaseExtractionScheduler:
                 
                 self.schedule_extraction(
                     query_id=query_id,
-                    interval_minutes=interval_minutes
+                    interval_minutes=interval_minutes,
+                    frequency_unit=query_config.get('schedule_frequency_unit', 'minutes'),
+                    frequency_value=query_config.get('schedule_frequency_value', interval_minutes),
+                    start_date=query_config.get('schedule_start_date'),
+                    end_date=query_config.get('schedule_end_date'),
                 )
                 
                 logger.info(f"Loaded scheduled query: {query_config['name']} (every {interval_minutes} min)")
@@ -115,15 +119,23 @@ class DatabaseExtractionScheduler:
     def schedule_extraction(self,
                           query_id: str,
                           interval_minutes: int = 60,
-                          start_immediately: bool = False) -> Optional[str]:
+                          start_immediately: bool = False,
+                          frequency_unit: str = "minutes",
+                          frequency_value: Optional[int] = None,
+                          start_date=None,
+                          end_date=None) -> Optional[str]:
         """
         Schedule periodic data extraction.
-        
+
         Args:
-            query_id: ID of the extraction query
-            interval_minutes: Extraction interval in minutes
+            query_id:         ID of the extraction query
+            interval_minutes: Legacy interval in minutes (used when frequency_value is None)
             start_immediately: Whether to run extraction immediately
-            
+            frequency_unit:   Unit for the interval: 'minutes'|'hours'|'days'|'weeks'
+            frequency_value:  Numeric interval value; defaults to interval_minutes when None
+            start_date:       ISO string or datetime – schedule active from this point
+            end_date:         ISO string or datetime – schedule expires after this point
+
         Returns:
             Job ID if successful, None otherwise
         """
@@ -136,9 +148,28 @@ class DatabaseExtractionScheduler:
             # Remove existing job if any
             if query_id in self.active_jobs:
                 self.cancel_extraction(query_id)
-            
+
+            # Normalise frequency
+            _unit  = frequency_unit if frequency_unit in ("minutes", "hours", "days", "weeks") else "minutes"
+            _value = frequency_value if frequency_value is not None else interval_minutes
+
+            # Parse date strings into datetime objects if needed
+            from datetime import datetime as _dt
+            def _parse_date(d):
+                if d is None:
+                    return None
+                if isinstance(d, str):
+                    try:
+                        return _dt.fromisoformat(d.replace("Z", "+00:00"))
+                    except Exception:
+                        return None
+                return d
+
+            _start = _parse_date(start_date)
+            _end   = _parse_date(end_date)
+
             # Create trigger
-            trigger = IntervalTrigger(minutes=interval_minutes)
+            trigger = IntervalTrigger(**{_unit: _value}, start_date=_start, end_date=_end, timezone='UTC')
             
             # Add job to scheduler
             job = self.scheduler.add_job(
@@ -154,11 +185,20 @@ class DatabaseExtractionScheduler:
                 'job_id': job.id,
                 'query_name': query_config['name'],
                 'interval_minutes': interval_minutes,
+                'frequency_unit': _unit,
+                'frequency_value': _value,
+                'start_date': start_date,
+                'end_date': end_date,
                 'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
                 'scheduled_at': datetime.now().isoformat()
             }
             
-            logger.info(f"Scheduled extraction for query '{query_config['name']}' every {interval_minutes} minutes")
+            logger.info(
+                f"Scheduled extraction for query '{query_config['name']}' "
+                f"every {_value} {_unit}"
+                + (f" from {start_date}" if start_date else "")
+                + (f" until {end_date}" if end_date else "")
+            )
             
             # Run immediately if requested
             if start_immediately:
@@ -332,7 +372,9 @@ class DatabaseExtractionScheduler:
         except Exception as exc:
             logger.error("_trigger_retraining_jobs error for query %s: %s", query_id, exc, exc_info=True)
 
-    def schedule_retraining(self, retrain_job_id: str, interval_minutes: int = 60) -> Optional[str]:
+    def schedule_retraining(self, retrain_job_id: str, interval_minutes: int = 60,
+                            frequency_unit: str = "minutes", frequency_value: Optional[int] = None,
+                            start_date=None, end_date=None) -> Optional[str]:
         """
         Schedule a standalone (not extraction-linked) periodic retraining job.
 
@@ -341,7 +383,11 @@ class DatabaseExtractionScheduler:
 
         Args:
             retrain_job_id:   Retraining job ID (from RetrainingJobManager)
-            interval_minutes: How often to retrain
+            interval_minutes: Legacy interval in minutes (used when frequency_value is None)
+            frequency_unit:   Unit for the interval: 'minutes'|'hours'|'days'|'weeks'
+            frequency_value:  Numeric interval value; defaults to interval_minutes when None
+            start_date:       ISO string or datetime – schedule active from this point
+            end_date:         ISO string or datetime – schedule expires after this point
 
         Returns:
             APScheduler job ID, or None on failure
@@ -363,7 +409,26 @@ class DatabaseExtractionScheduler:
             except Exception:
                 pass
 
-            trigger = IntervalTrigger(minutes=interval_minutes)
+            # Normalise frequency
+            _unit  = frequency_unit if frequency_unit in ("minutes", "hours", "days", "weeks") else "minutes"
+            _value = frequency_value if frequency_value is not None else interval_minutes
+
+            # Parse date strings
+            from datetime import datetime as _dt
+            def _parse_date(d):
+                if d is None:
+                    return None
+                if isinstance(d, str):
+                    try:
+                        return _dt.fromisoformat(d.replace("Z", "+00:00"))
+                    except Exception:
+                        return None
+                return d
+
+            _start = _parse_date(start_date)
+            _end   = _parse_date(end_date)
+
+            trigger = IntervalTrigger(**{_unit: _value}, start_date=_start, end_date=_end, timezone='UTC')
             job = self.scheduler.add_job(
                 func=self._run_retraining_standalone,
                 trigger=trigger,
@@ -374,8 +439,10 @@ class DatabaseExtractionScheduler:
             )
 
             logger.info(
-                "Standalone retraining schedule: '%s' every %d min",
-                retrain_job["name"], interval_minutes,
+                "Standalone retraining schedule: '%s' every %d %s%s%s",
+                retrain_job["name"], _value, _unit,
+                f" from {start_date}" if start_date else "",
+                f" until {end_date}" if end_date else "",
             )
             return job.id
 
@@ -486,12 +553,19 @@ class DatabaseExtractionScheduler:
             logger.error(f"Error running extraction: {e}")
             return False
     
-    def update_schedule(self, query_id: str, interval_minutes: int) -> bool:
-        """Update the schedule interval for an extraction."""
+    def update_schedule(self, query_id: str, interval_minutes: int,
+                        frequency_unit: str = "minutes", frequency_value: Optional[int] = None,
+                        start_date=None, end_date=None) -> bool:
+        """Update the schedule interval/frequency for an extraction."""
         try:
             if query_id in self.active_jobs:
-                # Reschedule with new interval
-                return self.schedule_extraction(query_id, interval_minutes) is not None
+                return self.schedule_extraction(
+                    query_id, interval_minutes,
+                    frequency_unit=frequency_unit,
+                    frequency_value=frequency_value,
+                    start_date=start_date,
+                    end_date=end_date,
+                ) is not None
             return False
         except Exception as e:
             logger.error(f"Error updating schedule: {e}")

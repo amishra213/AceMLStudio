@@ -104,8 +104,11 @@ const Retrain = (() => {
                 const statusBadge = _statusBadge(j.last_run_status);
                 const promoteBadge = j.auto_promote
                     ? '<span class="badge bg-info ms-1">Auto-Promote</span>' : "";
+                const _freqLabel = j.schedule_frequency_value
+                    ? `${j.schedule_frequency_value} ${j.schedule_frequency_unit || 'min'}`
+                    : `${j.schedule_interval_minutes || 60}m`;
                 const schedBadge = j.schedule_enabled
-                    ? `<span class="badge bg-success ms-1"><i class="fas fa-clock me-1"></i>${j.schedule_interval}m</span>`
+                    ? `<span class="badge bg-success ms-1"><i class="fas fa-clock me-1"></i>${_freqLabel}</span>`
                     : '<span class="badge bg-secondary ms-1">Manual</span>';
                 return `
                 <div class="col-md-4 col-lg-3">
@@ -172,8 +175,13 @@ const Retrain = (() => {
             }
 
             tbody.innerHTML = jobs.map(j => {
+                const _unit = j.schedule_frequency_unit || 'minutes';
+                const _val  = j.schedule_frequency_value || j.schedule_interval_minutes || 60;
+                let schedTip = `Every ${_val} ${_unit}`;
+                if (j.schedule_start_date) schedTip += ` from ${j.schedule_start_date.slice(0,10)}`;
+                if (j.schedule_end_date)   schedTip += ` to ${j.schedule_end_date.slice(0,10)}`;
                 const sched = j.schedule_enabled
-                    ? `<span class="badge bg-success">Every ${j.schedule_interval_minutes}m</span>`
+                    ? `<span class="badge bg-success" title="${schedTip}">Every ${_val} ${_unit}</span>`
                     : `<span class="badge bg-secondary">Off</span>`;
                 const promo = j.auto_promote
                     ? `<span class="badge bg-info">${j.promotion_metric} &gt; +${j.promotion_threshold}</span>`
@@ -416,8 +424,13 @@ const Retrain = (() => {
         document.getElementById("rjAutoPromote").checked       = !!j.auto_promote;
         document.getElementById("rjPromotionMetric").value     = j.promotion_metric || "val_score";
         document.getElementById("rjPromotionThreshold").value  = j.promotion_threshold ?? 0;
-        document.getElementById("rjScheduleEnabled").checked   = !!j.schedule_enabled;
-        document.getElementById("rjIntervalMins").value        = j.schedule_interval_minutes || 60;
+        document.getElementById("rjScheduleEnabled").checked = !!j.schedule_enabled;
+        document.getElementById("rjFreqValue").value          = j.schedule_frequency_value || 1;
+        document.getElementById("rjFreqUnit").value           = j.schedule_frequency_unit  || "hours";
+        document.getElementById("rjStartDate").value          = j.schedule_start_date
+            ? j.schedule_start_date.slice(0, 16) : "";
+        document.getElementById("rjEndDate").value            = j.schedule_end_date
+            ? j.schedule_end_date.slice(0, 16) : "";
 
         // Trigger conditional display
         document.getElementById("rjScheduleConfig").style.display =
@@ -446,7 +459,10 @@ const Retrain = (() => {
         document.getElementById("rjPromotionMetric").value   = "val_score";
         document.getElementById("rjPromotionThreshold").value= "0.0";
         document.getElementById("rjScheduleEnabled").checked = false;
-        document.getElementById("rjIntervalMins").value      = "60";
+        document.getElementById("rjFreqValue").value         = "1";
+        document.getElementById("rjFreqUnit").value          = "hours";
+        document.getElementById("rjStartDate").value         = "";
+        document.getElementById("rjEndDate").value           = "";
         document.getElementById("rjUseStandalone").checked   = false;
         document.getElementById("rjScheduleConfig").style.display = "none";
     }
@@ -481,8 +497,11 @@ const Retrain = (() => {
             auto_promote:              document.getElementById("rjAutoPromote").checked,
             promotion_metric:          document.getElementById("rjPromotionMetric").value,
             promotion_threshold:       parseFloat(document.getElementById("rjPromotionThreshold").value) || 0,
-            schedule_enabled:          document.getElementById("rjScheduleEnabled").checked,
-            schedule_interval_minutes: parseInt(document.getElementById("rjIntervalMins").value) || 60,
+            schedule_enabled:         document.getElementById("rjScheduleEnabled").checked,
+            schedule_frequency_value: parseInt(document.getElementById("rjFreqValue").value) || 1,
+            schedule_frequency_unit:  document.getElementById("rjFreqUnit").value || "hours",
+            schedule_start_date:      document.getElementById("rjStartDate").value || null,
+            schedule_end_date:        document.getElementById("rjEndDate").value   || null,
         };
 
         // Validate
@@ -517,9 +536,12 @@ const Retrain = (() => {
                     const newJobId = r.data?.job_id;
                     if (newJobId) {
                         await _api("/api/retrain/schedule/start", {
-                            job_id: newJobId,
-                            interval_minutes: payload.schedule_interval_minutes,
-                            use_standalone: document.getElementById("rjUseStandalone").checked,
+                            job_id:          newJobId,
+                            frequency_value: payload.schedule_frequency_value,
+                            frequency_unit:  payload.schedule_frequency_unit,
+                            start_date:      payload.schedule_start_date,
+                            end_date:        payload.schedule_end_date,
+                            use_standalone:  document.getElementById("rjUseStandalone").checked,
                         });
                     }
                 }
@@ -573,12 +595,18 @@ const Retrain = (() => {
 
     async function startSchedule(jobId) {
         const job = _jobs.find(j => j.job_id === jobId);
-        const interval = job?.schedule_interval_minutes || 60;
+        const freqValue = job?.schedule_frequency_value || 1;
+        const freqUnit  = job?.schedule_frequency_unit  || 'hours';
         const r = await _api("/api/retrain/schedule/start", {
-            job_id: jobId, interval_minutes: interval, use_standalone: false
+            job_id:          jobId,
+            frequency_value: freqValue,
+            frequency_unit:  freqUnit,
+            start_date:      job?.schedule_start_date || null,
+            end_date:        job?.schedule_end_date   || null,
+            use_standalone:  false
         });
         if (r.status === "ok") {
-            _notify(`Schedule started (every ${interval} min)`, "success");
+            _notify(`Schedule started (every ${freqValue} ${freqUnit})`, "success");
             _refreshAll();
         } else {
             _notify(r.message || "Failed to start schedule", "danger");

@@ -5619,6 +5619,10 @@ def save_extraction_query():
         where_clause = body.get("where_clause")
         schedule_enabled = body.get("schedule_enabled", False)
         schedule_interval_minutes = body.get("schedule_interval_minutes", 60)
+        schedule_frequency_unit  = body.get("schedule_frequency_unit", "minutes")
+        schedule_frequency_value = int(body.get("schedule_frequency_value", schedule_interval_minutes) or schedule_interval_minutes)
+        schedule_start_date = body.get("schedule_start_date")
+        schedule_end_date   = body.get("schedule_end_date")
         
         if not name or not connection_id or not table_name:
             return _err("name, connection_id, and table_name are required")
@@ -5630,10 +5634,26 @@ def save_extraction_query():
         )
         
         if success:
+            # Persist new schedule fields on the query config
+            qcfg = query_manager.get_query(query_id)
+            if qcfg:
+                qcfg['schedule_frequency_unit']  = schedule_frequency_unit
+                qcfg['schedule_frequency_value'] = schedule_frequency_value
+                qcfg['schedule_start_date']      = schedule_start_date
+                qcfg['schedule_end_date']        = schedule_end_date
+                query_manager.queries[query_id]  = qcfg
+                query_manager._save_queries()
+
             # If schedule enabled, add to scheduler
             if schedule_enabled:
                 scheduler = get_scheduler()
-                scheduler.schedule_extraction(query_id, schedule_interval_minutes)
+                scheduler.schedule_extraction(
+                    query_id, schedule_interval_minutes,
+                    frequency_unit=schedule_frequency_unit,
+                    frequency_value=schedule_frequency_value,
+                    start_date=schedule_start_date,
+                    end_date=schedule_end_date,
+                )
             
             return _ok({"id": query_id}, "Query saved successfully")
         return _err("Failed to save query")
@@ -5777,12 +5797,22 @@ def start_extraction_schedule():
         query_id = body.get("query_id", "")
         interval_minutes = body.get("interval_minutes", 60)
         start_immediately = body.get("start_immediately", False)
+        frequency_unit  = body.get("frequency_unit", "minutes")
+        frequency_value = int(body.get("frequency_value", interval_minutes) or interval_minutes)
+        start_date      = body.get("start_date")
+        end_date        = body.get("end_date")
         
         if not query_id:
             return _err("query_id is required")
         
         scheduler = get_scheduler()
-        job_id = scheduler.schedule_extraction(query_id, interval_minutes, start_immediately)
+        job_id = scheduler.schedule_extraction(
+            query_id, interval_minutes, start_immediately,
+            frequency_unit=frequency_unit,
+            frequency_value=frequency_value,
+            start_date=start_date,
+            end_date=end_date,
+        )
         
         if job_id:
             # Update query config
@@ -5790,6 +5820,10 @@ def start_extraction_schedule():
             if query_config:
                 query_config['schedule_enabled'] = True
                 query_config['schedule_interval_minutes'] = interval_minutes
+                query_config['schedule_frequency_unit']  = frequency_unit
+                query_config['schedule_frequency_value'] = frequency_value
+                query_config['schedule_start_date']      = start_date
+                query_config['schedule_end_date']        = end_date
                 query_manager.queries[query_id] = query_config
                 query_manager._save_queries()
             
@@ -5936,7 +5970,11 @@ def create_retraining_job():
     promotion_threshold        float – Min delta to trigger promotion (default 0.0)
     hyperparams                dict  – Override default hyperparameters
     schedule_enabled           bool  – Auto-trigger when linked extraction runs (default false)
-    schedule_interval_minutes  int   – Standalone schedule interval in minutes (default 60)
+    schedule_interval_minutes  int   – Legacy interval in minutes (default 60)
+    schedule_frequency_unit    str   – 'minutes'|'hours'|'days'|'weeks' (default 'minutes')
+    schedule_frequency_value   int   – Numeric frequency value (default 60)
+    schedule_start_date        str   – ISO datetime; schedule active from this point
+    schedule_end_date          str   – ISO datetime; schedule expires after this point
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -5959,6 +5997,12 @@ def create_retraining_job():
         if task not in ("classification", "regression", "unsupervised"):
             return _err("task must be 'classification', 'regression', or 'unsupervised'")
 
+        sched_interval = int(body.get("schedule_interval_minutes", 60))
+        sched_unit     = body.get("schedule_frequency_unit", "minutes")
+        sched_value    = int(body.get("schedule_frequency_value", sched_interval) or sched_interval)
+        sched_start    = body.get("schedule_start_date")
+        sched_end      = body.get("schedule_end_date")
+
         job = _retrain_job_mgr.create_job(
             name                      = name,
             query_id                  = query_id,
@@ -5975,15 +6019,22 @@ def create_retraining_job():
             promotion_threshold       = float(body.get("promotion_threshold", 0.0)),
             hyperparams               = body.get("hyperparams") or {},
             schedule_enabled          = body.get("schedule_enabled", False),
-            schedule_interval_minutes = int(body.get("schedule_interval_minutes", 60)),
+            schedule_interval_minutes = sched_interval,
+            schedule_frequency_unit   = sched_unit,
+            schedule_frequency_value  = sched_value,
+            schedule_start_date       = sched_start,
+            schedule_end_date         = sched_end,
         )
 
         # If standalone schedule requested, add to scheduler too
         if body.get("schedule_enabled") and not query_id:
             scheduler = get_scheduler()
             scheduler.schedule_retraining(
-                job["job_id"],
-                int(body.get("schedule_interval_minutes", 60)),
+                job["job_id"], sched_interval,
+                frequency_unit=sched_unit,
+                frequency_value=sched_value,
+                start_date=sched_start,
+                end_date=sched_end,
             )
 
         return _ok(job, f"Retraining job '{name}' created")
@@ -6038,6 +6089,8 @@ def update_retraining_job():
             body["promotion_threshold"] = float(body["promotion_threshold"])
         if "schedule_interval_minutes" in body:
             body["schedule_interval_minutes"] = int(body["schedule_interval_minutes"])
+        if "schedule_frequency_value" in body:
+            body["schedule_frequency_value"] = int(body["schedule_frequency_value"])
 
         updated = _retrain_job_mgr.update_job(job_id, body)
         if not updated:
@@ -6136,23 +6189,35 @@ def start_retraining_schedule():
     • Optionally also starts a standalone APScheduler interval job.
 
     Body:
-        job_id                str   – required
-        interval_minutes      int   – standalone schedule interval (optional)
-        use_standalone        bool  – also schedule an independent APScheduler job
+        job_id                  str   – required
+        interval_minutes        int   – standalone schedule interval (optional)
+        use_standalone          bool  – also schedule an independent APScheduler job
+        frequency_unit          str   – 'minutes'|'hours'|'days'|'weeks'
+        frequency_value         int   – numeric interval value
+        start_date              str   – ISO datetime; schedule active from this point
+        end_date                str   – ISO datetime; schedule expires after this point
     """
     try:
         body             = request.get_json(silent=True) or {}
         job_id           = body.get("job_id", "")
         interval_minutes = int(body.get("interval_minutes", 60))
         use_standalone   = body.get("use_standalone", False)
+        freq_unit        = body.get("frequency_unit", "minutes")
+        freq_value       = int(body.get("frequency_value", interval_minutes) or interval_minutes)
+        start_date       = body.get("start_date")
+        end_date         = body.get("end_date")
 
         if not job_id:
             return _err("job_id is required")
 
-        # Enable schedule flag on the job
+        # Enable schedule flag on the job and persist new date/frequency fields
         updated = _retrain_job_mgr.update_job(job_id, {
             "schedule_enabled":          True,
             "schedule_interval_minutes": interval_minutes,
+            "schedule_frequency_unit":   freq_unit,
+            "schedule_frequency_value":  freq_value,
+            "schedule_start_date":       start_date,
+            "schedule_end_date":         end_date,
         })
         if not updated:
             return _err(f"Retraining job not found: {job_id}")
@@ -6160,10 +6225,19 @@ def start_retraining_schedule():
         sched_job_id = None
         if use_standalone:
             scheduler = get_scheduler()
-            sched_job_id = scheduler.schedule_retraining(job_id, interval_minutes)
+            sched_job_id = scheduler.schedule_retraining(
+                job_id, interval_minutes,
+                frequency_unit=freq_unit,
+                frequency_value=freq_value,
+                start_date=start_date,
+                end_date=end_date,
+            )
 
         return _ok(
-            {"job_id": job_id, "interval_minutes": interval_minutes, "apscheduler_job": sched_job_id},
+            {"job_id": job_id, "interval_minutes": interval_minutes,
+             "frequency_unit": freq_unit, "frequency_value": freq_value,
+             "start_date": start_date, "end_date": end_date,
+             "apscheduler_job": sched_job_id},
             "Retraining schedule activated"
         )
     except Exception as exc:

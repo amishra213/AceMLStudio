@@ -110,6 +110,10 @@ class RetrainingJobManager:
         hyperparams: Optional[Dict[str, Any]] = None,
         schedule_enabled: bool = False,
         schedule_interval_minutes: int = 60,
+        schedule_frequency_unit: str = "minutes",
+        schedule_frequency_value: int = 60,
+        schedule_start_date: Optional[str] = None,
+        schedule_end_date: Optional[str] = None,
         job_id: Optional[str] = None,
     ) -> Dict:
         """
@@ -131,7 +135,11 @@ class RetrainingJobManager:
             promotion_threshold:         Minimum delta to trigger auto-promotion
             hyperparams:                 Override default hyperparameters
             schedule_enabled:            Whether to trigger this job on the query schedule
-            schedule_interval_minutes:   Separate schedule interval (if not tied to query)
+            schedule_interval_minutes:   Legacy alias – kept for backward compat (prefer frequency fields)
+            schedule_frequency_unit:     Unit for the interval: 'minutes'|'hours'|'days'|'weeks'
+            schedule_frequency_value:    Numeric interval value (e.g. 2 hours, 1 day)
+            schedule_start_date:         ISO datetime string – schedule active from this point
+            schedule_end_date:           ISO datetime string – schedule expires after this point
             job_id:                      Optional explicit ID (generated if None)
 
         Returns:
@@ -157,6 +165,10 @@ class RetrainingJobManager:
             "hyperparams": hyperparams or {},
             "schedule_enabled": schedule_enabled,
             "schedule_interval_minutes": schedule_interval_minutes,
+            "schedule_frequency_unit": schedule_frequency_unit,
+            "schedule_frequency_value": schedule_frequency_value,
+            "schedule_start_date": schedule_start_date,
+            "schedule_end_date": schedule_end_date,
             "created_at": now,
             "updated_at": now,
             "last_run_at": None,
