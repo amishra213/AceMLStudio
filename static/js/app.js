@@ -268,6 +268,7 @@ function navigateTo(section) {
         graph: "Knowledge Graph", templates: "Industry Templates",
         monitoring: "Monitoring",
         connectors: "Cloud & DB Connectors",
+        retrain: "Scheduled Retraining",
     };
     document.getElementById("sectionTitle").textContent = titles[section] || section;
 
@@ -287,6 +288,8 @@ function navigateTo(section) {
     } else if (section === "connectors") {
         connectorsInit();
         _dbTogglePanels();
+    } else if (section === "retrain") {
+        if (typeof Retrain !== "undefined") Retrain.init();
     }
     // Re-init tooltips for the newly visible section
     setTimeout(_initTooltips, 50);

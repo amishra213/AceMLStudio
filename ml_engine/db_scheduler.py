@@ -27,6 +27,16 @@ from .db_connector import DatabaseConnector, DatabaseConfigManager, ExtractionQu
 
 logger = logging.getLogger("aceml.db_scheduler")
 
+# Lazy import to avoid circular dependencies
+def _get_retraining_pipeline():
+    from .retraining_engine import get_retraining_pipeline  # noqa: PLC0415
+    return get_retraining_pipeline()
+
+
+def _get_retraining_job_manager():
+    from .retraining_engine import get_retraining_job_manager  # noqa: PLC0415
+    return get_retraining_job_manager()
+
 # ═══════════════════════════════════════════════════════════════════
 #  Database Extraction Scheduler
 # ═══════════════════════════════════════════════════════════════════
@@ -248,6 +258,9 @@ class DatabaseExtractionScheduler:
             )
             
             logger.info(f"Extraction completed successfully in {elapsed:.2f}s: {filename}")
+
+            # ── Trigger linked retraining jobs ──────────────────────────────
+            self._trigger_retraining_jobs(query_id, filepath)
             
         except Exception as e:
             logger.error(f"Error during extraction execution: {e}", exc_info=True)
@@ -280,6 +293,153 @@ class DatabaseExtractionScheduler:
         if len(self.extraction_history) > 100:
             self.extraction_history = self.extraction_history[-100:]
     
+    def _trigger_retraining_jobs(self, query_id: str, data_file_path: str):
+        """
+        After a successful extraction, find all retraining jobs linked to this
+        query and execute them in the same background thread.
+        """
+        try:
+            job_manager = _get_retraining_job_manager()
+            linked_jobs = job_manager.list_jobs_for_query(query_id)
+
+            enabled_jobs = [j for j in linked_jobs if j.get("schedule_enabled", False)]
+            if not enabled_jobs:
+                return
+
+            logger.info(
+                "Triggering %d retraining job(s) for extraction query %s",
+                len(enabled_jobs), query_id,
+            )
+
+            pipeline = _get_retraining_pipeline()
+            for job in enabled_jobs:
+                job_id = job["job_id"]
+                try:
+                    logger.info("  → Starting retraining job '%s' (%s)", job["name"], job_id)
+                    result = pipeline.run(job_id=job_id, data_file_path=data_file_path)
+                    status = result.get("status", "unknown")
+                    version = result.get("new_model_version", "?")
+                    promoted = result.get("promoted", False)
+                    logger.info(
+                        "  ✓ Retraining job '%s' finished – status=%s version=%s promoted=%s",
+                        job["name"], status, version, promoted,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "  ✗ Retraining job '%s' (%s) raised an exception: %s",
+                        job["name"], job_id, exc, exc_info=True,
+                    )
+        except Exception as exc:
+            logger.error("_trigger_retraining_jobs error for query %s: %s", query_id, exc, exc_info=True)
+
+    def schedule_retraining(self, retrain_job_id: str, interval_minutes: int = 60) -> Optional[str]:
+        """
+        Schedule a standalone (not extraction-linked) periodic retraining job.
+
+        The scheduled function runs the full pipeline against the LAST extracted
+        file for the associated extraction query.
+
+        Args:
+            retrain_job_id:   Retraining job ID (from RetrainingJobManager)
+            interval_minutes: How often to retrain
+
+        Returns:
+            APScheduler job ID, or None on failure
+        """
+        try:
+            job_manager = _get_retraining_job_manager()
+            retrain_job = job_manager.get_job(retrain_job_id)
+            if not retrain_job:
+                logger.error("Retraining job not found: %s", retrain_job_id)
+                return None
+
+            sched_id = f"retrain_{retrain_job_id}"
+
+            # Remove existing schedule first
+            try:
+                existing = self.scheduler.get_job(sched_id)
+                if existing:
+                    self.scheduler.remove_job(sched_id)
+            except Exception:
+                pass
+
+            trigger = IntervalTrigger(minutes=interval_minutes)
+            job = self.scheduler.add_job(
+                func=self._run_retraining_standalone,
+                trigger=trigger,
+                args=[retrain_job_id],
+                id=sched_id,
+                name=f"Retrain: {retrain_job['name']}",
+                replace_existing=True,
+            )
+
+            logger.info(
+                "Standalone retraining schedule: '%s' every %d min",
+                retrain_job["name"], interval_minutes,
+            )
+            return job.id
+
+        except Exception as exc:
+            logger.error("schedule_retraining error: %s", exc)
+            return None
+
+    def _run_retraining_standalone(self, retrain_job_id: str):
+        """
+        Standalone scheduler callback: find the most recent extracted file for
+        the job's linked query and run the retraining pipeline against it.
+        """
+        try:
+            job_manager = _get_retraining_job_manager()
+            retrain_job = job_manager.get_job(retrain_job_id)
+            if not retrain_job:
+                logger.error("Standalone retrain: job not found: %s", retrain_job_id)
+                return
+
+            query_id = retrain_job.get("query_id", "")
+
+            # Find the most recent extraction file for this query
+            latest_file = self._find_latest_extraction_file(query_id)
+            if not latest_file:
+                logger.warning(
+                    "Standalone retrain: no extraction file found for query %s – "
+                    "run 'Extract Now' first or link to an active extraction schedule",
+                    query_id,
+                )
+                return
+
+            pipeline = _get_retraining_pipeline()
+            result = pipeline.run(job_id=retrain_job_id, data_file_path=latest_file)
+            logger.info(
+                "Standalone retrain '%s' done – status=%s version=%s promoted=%s",
+                retrain_job["name"],
+                result.get("status"),
+                result.get("new_model_version"),
+                result.get("promoted"),
+            )
+        except Exception as exc:
+            logger.error("_run_retraining_standalone error: %s", exc, exc_info=True)
+
+    def _find_latest_extraction_file(self, query_id: str) -> Optional[str]:
+        """Return the path of the most recently extracted file for a given query."""
+        # Check history records first (most reliable source)
+        history = self.get_extraction_history(query_id=query_id, limit=20)
+        for record in history:
+            fp = record.get("file_path")
+            if fp and os.path.exists(fp):
+                return fp
+        # Fallback: scan uploads folder for files matching the query's table name
+        query_config = self.query_manager.get_query(query_id)
+        if query_config:
+            table = query_config.get("table_name", "")
+            candidates = [
+                os.path.join(self.uploads_folder, f)
+                for f in os.listdir(self.uploads_folder)
+                if table in f and f.endswith(".csv")
+            ]
+            if candidates:
+                return max(candidates, key=os.path.getmtime)
+        return None
+
     def cancel_extraction(self, query_id: str) -> bool:
         """Cancel scheduled extraction."""
         try:

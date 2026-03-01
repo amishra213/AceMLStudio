@@ -5898,6 +5898,380 @@ def clear_dropped_columns():
         return _err(str(e))
 
 
+
+# ════════════════════════════════════════════════════════════════════
+#  Automated Retraining  – Job Management & Execution
+# ════════════════════════════════════════════════════════════════════
+
+from ml_engine.retraining_engine import (
+    get_retraining_pipeline,
+    get_retraining_job_manager,
+    RetrainingJobManager as _RetrainingJobManager,
+)
+
+# Eagerly initialise so the scheduler can reference the same singleton
+_retrain_job_mgr = get_retraining_job_manager()
+_retrain_pipeline = get_retraining_pipeline()
+
+
+@app.route("/api/retrain/jobs/create", methods=["POST"])
+def create_retraining_job():
+    """
+    Create a new retraining job that ties a DB extraction query to a model.
+
+    Body fields
+    -----------
+    name                       str   – Human-readable job name
+    query_id                   str   – Extraction query that supplies fresh data
+    model_name                 str   – Registry model name (e.g. 'fraud_detector')
+    model_key                  str   – Algorithm key (e.g. 'random_forest_clf')
+    task                       str   – 'classification' | 'regression' | 'unsupervised'
+    target_column              str   – Name of the target/label column
+    feature_columns            list  – (optional) Explicit feature list
+    apply_cleaning             bool  – Run DataCleaner (default true)
+    apply_feature_engineering  bool  – Run FeatureEngineer (default false)
+    compare_with_production    bool  – Compare with current production model (default true)
+    auto_promote               bool  – Auto-promote if improvement > threshold (default false)
+    promotion_metric           str   – Metric key for comparison (default 'val_score')
+    promotion_threshold        float – Min delta to trigger promotion (default 0.0)
+    hyperparams                dict  – Override default hyperparameters
+    schedule_enabled           bool  – Auto-trigger when linked extraction runs (default false)
+    schedule_interval_minutes  int   – Standalone schedule interval in minutes (default 60)
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+
+        name             = body.get("name", "")
+        query_id         = body.get("query_id", "")
+        model_name       = body.get("model_name", "")
+        model_key        = body.get("model_key", "")
+        task             = body.get("task", "")
+        target_column    = body.get("target_column", "")
+
+        # Validate required fields
+        missing = [f for f, v in [
+            ("name", name), ("query_id", query_id), ("model_name", model_name),
+            ("model_key", model_key), ("task", task), ("target_column", target_column),
+        ] if not v]
+        if missing:
+            return _err(f"Required fields missing: {', '.join(missing)}")
+
+        if task not in ("classification", "regression", "unsupervised"):
+            return _err("task must be 'classification', 'regression', or 'unsupervised'")
+
+        job = _retrain_job_mgr.create_job(
+            name                      = name,
+            query_id                  = query_id,
+            model_name                = model_name,
+            model_key                 = model_key,
+            task                      = task,
+            target_column             = target_column,
+            feature_columns           = body.get("feature_columns") or [],
+            apply_cleaning            = body.get("apply_cleaning", True),
+            apply_feature_engineering = body.get("apply_feature_engineering", False),
+            compare_with_production   = body.get("compare_with_production", True),
+            auto_promote              = body.get("auto_promote", False),
+            promotion_metric          = body.get("promotion_metric", "val_score"),
+            promotion_threshold       = float(body.get("promotion_threshold", 0.0)),
+            hyperparams               = body.get("hyperparams") or {},
+            schedule_enabled          = body.get("schedule_enabled", False),
+            schedule_interval_minutes = int(body.get("schedule_interval_minutes", 60)),
+        )
+
+        # If standalone schedule requested, add to scheduler too
+        if body.get("schedule_enabled") and not query_id:
+            scheduler = get_scheduler()
+            scheduler.schedule_retraining(
+                job["job_id"],
+                int(body.get("schedule_interval_minutes", 60)),
+            )
+
+        return _ok(job, f"Retraining job '{name}' created")
+
+    except Exception as exc:
+        logger.exception("create_retraining_job error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/jobs/list", methods=["GET"])
+def list_retraining_jobs():
+    """Return all retraining jobs."""
+    try:
+        jobs = _retrain_job_mgr.list_jobs()
+        return _ok(jobs)
+    except Exception as exc:
+        logger.exception("list_retraining_jobs error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/jobs/get", methods=["POST"])
+def get_retraining_job():
+    """Return a single retraining job by job_id."""
+    try:
+        body = request.get_json(silent=True) or {}
+        job_id = body.get("job_id", "")
+        if not job_id:
+            return _err("job_id is required")
+        job = _retrain_job_mgr.get_job(job_id)
+        if not job:
+            return _err(f"Retraining job not found: {job_id}")
+        return _ok(job)
+    except Exception as exc:
+        logger.exception("get_retraining_job error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/jobs/update", methods=["POST"])
+def update_retraining_job():
+    """
+    Update mutable fields of an existing retraining job.
+    Send only the fields you want to change alongside job_id.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        job_id = body.pop("job_id", "")
+        if not job_id:
+            return _err("job_id is required")
+
+        # Coerce numeric fields if present
+        if "promotion_threshold" in body:
+            body["promotion_threshold"] = float(body["promotion_threshold"])
+        if "schedule_interval_minutes" in body:
+            body["schedule_interval_minutes"] = int(body["schedule_interval_minutes"])
+
+        updated = _retrain_job_mgr.update_job(job_id, body)
+        if not updated:
+            return _err(f"Retraining job not found: {job_id}")
+        return _ok(updated, "Retraining job updated")
+    except Exception as exc:
+        logger.exception("update_retraining_job error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/jobs/delete", methods=["POST"])
+def delete_retraining_job():
+    """Delete a retraining job and cancel any standalone schedule."""
+    try:
+        body = request.get_json(silent=True) or {}
+        job_id = body.get("job_id", "")
+        if not job_id:
+            return _err("job_id is required")
+
+        # Cancel standalone schedule if it exists
+        try:
+            scheduler = get_scheduler()
+            sched_id = f"retrain_{job_id}"
+            if scheduler.scheduler.get_job(sched_id):
+                scheduler.scheduler.remove_job(sched_id)
+        except Exception:
+            pass
+
+        if _retrain_job_mgr.delete_job(job_id):
+            return _ok(None, "Retraining job deleted")
+        return _err(f"Retraining job not found: {job_id}")
+    except Exception as exc:
+        logger.exception("delete_retraining_job error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/run_now", methods=["POST"])
+def run_retraining_now():
+    """
+    Execute a retraining job immediately (outside its schedule).
+
+    Accepts either:
+    • job_id + file_path  – run against an explicit CSV file
+    • job_id alone        – auto-detect the most recent extraction file for
+                            the job's linked extraction query
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        job_id    = body.get("job_id", "")
+        file_path = body.get("file_path", "")
+
+        if not job_id:
+            return _err("job_id is required")
+
+        job = _retrain_job_mgr.get_job(job_id)
+        if not job:
+            return _err(f"Retraining job not found: {job_id}")
+
+        # If no explicit file_path provided, auto-detect the latest extraction
+        if not file_path:
+            scheduler = get_scheduler()
+            file_path = scheduler._find_latest_extraction_file(job.get("query_id", ""))
+
+        if not file_path:
+            return _err(
+                "No data file available. Run 'Extract Now' for the linked query first, "
+                "or provide file_path explicitly."
+            )
+
+        if not os.path.exists(file_path):
+            return _err(f"Data file not found on disk: {file_path}")
+
+        result = _retrain_pipeline.run(job_id=job_id, data_file_path=file_path)
+
+        status_code = 200 if result.get("status") == "success" else 422
+        message = (
+            f"Retraining completed – v{result.get('new_model_version', '?')}"
+            + (" (PROMOTED)" if result.get("promoted") else "")
+            if result.get("status") == "success"
+            else f"Retraining failed: {result.get('error', 'Unknown error')}"
+        )
+        return jsonify({"status": result["status"], "message": message, "data": result}), status_code
+
+    except Exception as exc:
+        logger.exception("run_retraining_now error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/schedule/start", methods=["POST"])
+def start_retraining_schedule():
+    """
+    Activate the schedule for a retraining job.
+
+    • If the job has a query_id, it will auto-trigger whenever that
+      extraction query runs (set schedule_enabled=True on the job).
+    • Optionally also starts a standalone APScheduler interval job.
+
+    Body:
+        job_id                str   – required
+        interval_minutes      int   – standalone schedule interval (optional)
+        use_standalone        bool  – also schedule an independent APScheduler job
+    """
+    try:
+        body             = request.get_json(silent=True) or {}
+        job_id           = body.get("job_id", "")
+        interval_minutes = int(body.get("interval_minutes", 60))
+        use_standalone   = body.get("use_standalone", False)
+
+        if not job_id:
+            return _err("job_id is required")
+
+        # Enable schedule flag on the job
+        updated = _retrain_job_mgr.update_job(job_id, {
+            "schedule_enabled":          True,
+            "schedule_interval_minutes": interval_minutes,
+        })
+        if not updated:
+            return _err(f"Retraining job not found: {job_id}")
+
+        sched_job_id = None
+        if use_standalone:
+            scheduler = get_scheduler()
+            sched_job_id = scheduler.schedule_retraining(job_id, interval_minutes)
+
+        return _ok(
+            {"job_id": job_id, "interval_minutes": interval_minutes, "apscheduler_job": sched_job_id},
+            "Retraining schedule activated"
+        )
+    except Exception as exc:
+        logger.exception("start_retraining_schedule error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/schedule/stop", methods=["POST"])
+def stop_retraining_schedule():
+    """
+    Deactivate the schedule for a retraining job.
+    Removes standalone APScheduler job and clears the schedule_enabled flag.
+    """
+    try:
+        body   = request.get_json(silent=True) or {}
+        job_id = body.get("job_id", "")
+        if not job_id:
+            return _err("job_id is required")
+
+        _retrain_job_mgr.update_job(job_id, {"schedule_enabled": False})
+
+        # Remove standalone APScheduler job if present
+        try:
+            scheduler = get_scheduler()
+            sched_id  = f"retrain_{job_id}"
+            if scheduler.scheduler.get_job(sched_id):
+                scheduler.scheduler.remove_job(sched_id)
+        except Exception:
+            pass
+
+        return _ok(None, "Retraining schedule deactivated")
+    except Exception as exc:
+        logger.exception("stop_retraining_schedule error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/history", methods=["POST"])
+def get_retraining_history():
+    """
+    Return past retraining run records.
+
+    Body:
+        job_id   str  – (optional) filter to a specific job
+        limit    int  – max records to return (default 50)
+    """
+    try:
+        body   = request.get_json(silent=True) or {}
+        job_id = body.get("job_id")
+        limit  = int(body.get("limit", 50))
+
+        history = _retrain_pipeline.get_run_history(job_id=job_id, limit=limit)
+        return _ok(history)
+    except Exception as exc:
+        logger.exception("get_retraining_history error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/history/run", methods=["POST"])
+def get_retraining_run():
+    """Return full details of a single retraining run by run_id."""
+    try:
+        body   = request.get_json(silent=True) or {}
+        run_id = body.get("run_id", "")
+        if not run_id:
+            return _err("run_id is required")
+
+        run = _retrain_pipeline.get_run(run_id)
+        if not run:
+            return _err(f"Run not found: {run_id}")
+        return _ok(run)
+    except Exception as exc:
+        logger.exception("get_retraining_run error")
+        return _err(str(exc))
+
+
+@app.route("/api/retrain/status", methods=["GET"])
+def get_retraining_status():
+    """
+    Return a summary of all retraining jobs with their latest run status.
+    Useful for a dashboard overview card.
+    """
+    try:
+        jobs    = _retrain_job_mgr.list_jobs()
+        summary = []
+        for job in jobs:
+            summary.append({
+                "job_id":               job["job_id"],
+                "name":                 job["name"],
+                "model_name":           job["model_name"],
+                "model_key":            job["model_key"],
+                "task":                 job["task"],
+                "query_id":             job.get("query_id"),
+                "schedule_enabled":     job.get("schedule_enabled", False),
+                "schedule_interval":    job.get("schedule_interval_minutes"),
+                "last_run_at":          job.get("last_run_at"),
+                "last_run_status":      job.get("last_run_status"),
+                "last_run_id":          job.get("last_run_id"),
+                "run_count":            job.get("run_count", 0),
+                "auto_promote":         job.get("auto_promote", False),
+                "promotion_metric":     job.get("promotion_metric"),
+                "promotion_threshold":  job.get("promotion_threshold"),
+            })
+        return _ok(summary)
+    except Exception as exc:
+        logger.exception("get_retraining_status error")
+        return _err(str(exc))
+
+
 # ────────────────────────────────────────────────────────────────────
 #  Error Handlers
 # ────────────────────────────────────────────────────────────────────

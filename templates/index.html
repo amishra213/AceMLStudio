@@ -117,6 +117,10 @@
                 <a class="nav-item" data-section="monitoring" href="#" title="Model drift detection, performance alerts, alert rule management">
                     <i class="fas fa-heartbeat"></i><span>Monitoring</span>
                 </a>
+                <a class="nav-item" data-section="retrain" href="#" title="Define scheduled jobs to retrain existing models on fresh DB-extracted data">
+                    <i class="fas fa-sync-alt"></i><span>Scheduled Retraining</span>
+                    <span class="badge bg-warning ms-auto" style="font-size:0.55rem;padding:2px 5px;">NEW</span>
+                </a>
 
                 <!-- ── SYSTEM ── -->
                 <div class="nav-group-label">SYSTEM</div>
@@ -3316,6 +3320,128 @@
                     </div>
                 </section>
 
+                <!-- ══════════ SCHEDULED RETRAINING ══════════ -->
+                <section class="content-section" id="sec-retrain">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <div class="adv-module-banner d-flex align-items-center">
+                                <span><i class="fas fa-sync-alt me-2"></i><strong>Scheduled Retraining</strong>
+                                — Define jobs that pull fresh data from a DB extraction query and automatically retrain, evaluate and (optionally) promote registered models.</span>
+                                <button class="btn btn-sm btn-success ms-auto" id="retrainCreateBtn">
+                                    <i class="fas fa-plus me-1"></i>New Retraining Job
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab pills -->
+                    <ul class="nav nav-pills mb-4" id="retrainTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="retrain-tab-status" data-bs-toggle="pill"
+                                data-bs-target="#retrain-pane-status" type="button">
+                                <i class="fas fa-tasks me-1"></i>Job Status
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="retrain-tab-jobs" data-bs-toggle="pill"
+                                data-bs-target="#retrain-pane-jobs" type="button">
+                                <i class="fas fa-list me-1"></i>Jobs
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="retrain-tab-history" data-bs-toggle="pill"
+                                data-bs-target="#retrain-pane-history" type="button">
+                                <i class="fas fa-history me-1"></i>Run History
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+
+                        <!-- ─── STATUS TAB ─── -->
+                        <div class="tab-pane fade show active" id="retrain-pane-status" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="text-muted small">Live snapshot of all retraining jobs and their latest run.</span>
+                                <button class="btn btn-outline-secondary btn-sm" id="retrainStatusRefreshBtn">
+                                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                                </button>
+                            </div>
+                            <div id="retrainStatusCards" class="row g-3">
+                                <div class="col-12 text-center text-muted py-5">
+                                    <i class="fas fa-sync-alt fa-2x mb-2 d-block opacity-25"></i>
+                                    <p class="small">No retraining jobs yet.<br>Click <strong>New Retraining Job</strong> to get started.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ─── JOBS TAB ─── -->
+                        <div class="tab-pane fade" id="retrain-pane-jobs" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="text-muted small">Manage retraining job definitions.</span>
+                                <button class="btn btn-outline-secondary btn-sm" id="retrainJobsRefreshBtn">
+                                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-dark table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Model</th>
+                                            <th>Algorithm</th>
+                                            <th>Task</th>
+                                            <th>Target Col</th>
+                                            <th>Schedule</th>
+                                            <th>Auto-Promote</th>
+                                            <th>Runs</th>
+                                            <th>Last Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="retrainJobsBody">
+                                        <tr><td colspan="10" class="text-center text-muted py-3">No jobs defined yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ─── HISTORY TAB ─── -->
+                        <div class="tab-pane fade" id="retrain-pane-history" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="text-muted small">Recent pipeline execution records.</span>
+                                <div class="d-flex gap-2">
+                                    <select class="form-select form-select-sm" id="retrainHistoryJobFilter" style="max-width:220px">
+                                        <option value="">All jobs</option>
+                                    </select>
+                                    <button class="btn btn-outline-secondary btn-sm" id="retrainHistoryRefreshBtn">
+                                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-dark table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Run ID</th>
+                                            <th>Job</th>
+                                            <th>Started</th>
+                                            <th>Duration</th>
+                                            <th>Status</th>
+                                            <th>New Version</th>
+                                            <th>Promoted</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="retrainHistoryBody">
+                                        <tr><td colspan="8" class="text-center text-muted py-3">No runs yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div><!-- /tab-content -->
+                </section><!-- /sec-retrain -->
+
             </div>
         </main>
     </div>
@@ -3637,8 +3763,213 @@
         </div>
     </div>
 
+    <!-- ═══════ RETRAINING – Create/Edit Job Modal ═══════ -->
+    <div class="modal fade" id="retrainJobModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="retrainJobModalTitle"><i class="fas fa-sync-alt me-2"></i>New Retraining Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="rjEditId"><!-- populated when editing -->
+                    <div class="row g-3">
+                        <!-- Left column -->
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3"><i class="fas fa-tag me-1"></i>Job Identity</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Job Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="rjName" placeholder="e.g. Fraud Model Weekly Retrain">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">DB Extraction Query <span class="text-danger">*</span>
+                                    <small class="text-muted">(provides fresh data)</small>
+                                </label>
+                                <select class="form-select form-select-sm" id="rjQueryId">
+                                    <option value="">— Loading queries… —</option>
+                                </select>
+                                <small class="text-muted">Select the extraction query whose scheduled CSV will trigger this job.</small>
+                            </div>
+
+                            <h6 class="text-primary mb-3 mt-4"><i class="fas fa-brain me-1"></i>Model</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Registry Model Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="rjModelName" placeholder="e.g. fraud_detector">
+                                <small class="text-muted">Name used in the Model Registry (new versions are auto-created).</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Algorithm <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" id="rjModelKey">
+                                    <optgroup label="Classification">
+                                        <option value="logistic_regression">Logistic Regression</option>
+                                        <option value="random_forest_clf">Random Forest (Clf)</option>
+                                        <option value="gradient_boosting_clf">Gradient Boosting (Clf)</option>
+                                        <option value="xgboost_clf">XGBoost (Clf)</option>
+                                        <option value="decision_tree_clf">Decision Tree (Clf)</option>
+                                        <option value="svm_clf">SVM (Clf)</option>
+                                        <option value="knn_clf">KNN (Clf)</option>
+                                        <option value="mlp_clf">MLP (Clf)</option>
+                                    </optgroup>
+                                    <optgroup label="Regression">
+                                        <option value="linear_regression">Linear Regression</option>
+                                        <option value="random_forest_reg">Random Forest (Reg)</option>
+                                        <option value="gradient_boosting_reg">Gradient Boosting (Reg)</option>
+                                        <option value="xgboost_reg">XGBoost (Reg)</option>
+                                        <option value="decision_tree_reg">Decision Tree (Reg)</option>
+                                        <option value="svr_reg">SVR</option>
+                                        <option value="knn_reg">KNN (Reg)</option>
+                                        <option value="mlp_reg">MLP (Reg)</option>
+                                    </optgroup>
+                                    <optgroup label="Unsupervised">
+                                        <option value="kmeans">K-Means</option>
+                                        <option value="dbscan">DBSCAN</option>
+                                        <option value="isolation_forest">Isolation Forest</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Task Type <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" id="rjTask">
+                                    <option value="classification">Classification</option>
+                                    <option value="regression">Regression</option>
+                                    <option value="unsupervised">Unsupervised</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Target Column <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="rjTargetCol" placeholder="e.g. is_fraud">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Feature Columns
+                                    <small class="text-muted">(comma-separated, leave blank = use all)</small>
+                                </label>
+                                <input type="text" class="form-control form-control-sm" id="rjFeatureCols" placeholder="col1, col2, col3  ...">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Hyperparameter Overrides
+                                    <small class="text-muted">(optional JSON)</small>
+                                </label>
+                                <input type="text" class="form-control form-control-sm font-monospace" id="rjHyperparams" placeholder='{"n_estimators": 200, "max_depth": 6}'>
+                            </div>
+                        </div>
+
+                        <!-- Right column -->
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3"><i class="fas fa-broom me-1"></i>Pre-processing</h6>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="rjApplyCleaning" checked>
+                                    <label class="form-check-label" for="rjApplyCleaning">
+                                        Auto-clean data (dedup, null imputation)
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="rjApplyFE">
+                                    <label class="form-check-label" for="rjApplyFE">
+                                        Apply polynomial feature engineering (degree 2)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <h6 class="text-primary mb-3 mt-4"><i class="fas fa-trophy me-1"></i>Promotion</h6>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="rjCompareWithProd" checked>
+                                    <label class="form-check-label" for="rjCompareWithProd">
+                                        Compare new model with current production
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="rjAutoPromote">
+                                    <label class="form-check-label" for="rjAutoPromote">
+                                        Auto-promote if improvement exceeds threshold
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3" id="rjPromotionConfig">
+                                <div class="col-7">
+                                    <label class="form-label form-label-sm">Promotion Metric</label>
+                                    <select class="form-select form-select-sm" id="rjPromotionMetric">
+                                        <option value="val_score">val_score</option>
+                                        <option value="accuracy">accuracy</option>
+                                        <option value="f1_score">f1_score</option>
+                                        <option value="r2_score">r2_score</option>
+                                        <option value="roc_auc">roc_auc</option>
+                                        <option value="silhouette_score">silhouette_score</option>
+                                    </select>
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label form-label-sm">Min Improvement (delta)</label>
+                                    <input type="number" class="form-control form-control-sm" id="rjPromotionThreshold" value="0.0" step="0.001" min="0">
+                                </div>
+                            </div>
+
+                            <h6 class="text-primary mb-3 mt-4"><i class="fas fa-clock me-1"></i>Schedule</h6>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="rjScheduleEnabled">
+                                    <label class="form-check-label" for="rjScheduleEnabled">
+                                        Enable automatic scheduling
+                                    </label>
+                                </div>
+                                <small class="text-muted">When enabled, this job will run automatically whenever the linked extraction query completes.</small>
+                            </div>
+                            <div id="rjScheduleConfig" style="display:none">
+                                <div class="row g-2 mb-3">
+                                    <div class="col-8">
+                                        <label class="form-label form-label-sm">Interval (minutes)</label>
+                                        <input type="number" class="form-control form-control-sm" id="rjIntervalMins" value="60" min="5">
+                                    </div>
+                                    <div class="col-4 d-flex align-items-end">
+                                        <div class="form-check form-switch ms-1">
+                                            <input class="form-check-input" type="checkbox" id="rjUseStandalone">
+                                            <label class="form-check-label form-label-sm" for="rjUseStandalone">Standalone timer</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    <strong>Standalone timer</strong>: also runs on its own interval clock, independent of the extraction schedule.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="retrainJobSaveBtn">
+                        <i class="fas fa-save me-1"></i>Save Job
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ RETRAINING – Run Detail Modal ═══════ -->
+    <div class="modal fade" id="retrainRunModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-stream me-2"></i>Run Detail</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="retrainRunDetail">
+                    <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Retraining JS -->
+    <script src="/static/js/retrain.js"></script>
     <!-- App JS -->
     <script src="/static/js/app.js"></script>
 </body>
